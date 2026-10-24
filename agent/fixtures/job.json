@@ -1,0 +1,28 @@
+{
+  "id": "job_demo_backend",
+  "org_id": "org_demo",
+  "title": "Senior Backend Engineer",
+  "company_name": "Northwind Analytics",
+  "max_duration_sec": 600,
+  "jd_text": "Northwind Analytics is hiring a Senior Backend Engineer to build the APIs and data pipelines behind our retail analytics platform. You will design and operate Python services built with FastAPI, store data in PostgreSQL, use Redis for caching, and run event-driven pipelines on Kafka. Services run in Docker on AWS. Requirements: 5+ years of backend development; strong Python; solid SQL and data-modelling skills; experience designing REST APIs; experience debugging production incidents; clear communication with product and data teams. Nice to have: experience with Kafka consumer groups and exactly-once processing.",
+  "questions": [
+    {"text": "Walk me through how you would design a REST API for uploading and querying sales reports for thousands of retail stores.", "category": "system design", "difficulty": "medium"},
+    {"text": "A PostgreSQL query that used to take 50 ms now takes 5 seconds in production. How do you investigate?", "category": "debugging", "difficulty": "medium"},
+    {"text": "How would you decide what to cache in Redis for a read-heavy analytics endpoint, and how do you keep the cache correct?", "category": "caching", "difficulty": "medium"},
+    {"text": "Tell me about a production incident you were involved in. What happened and what did you change afterwards?", "category": "behavioural", "difficulty": "medium"},
+    {"text": "How would you make a Kafka consumer process each event exactly once into PostgreSQL?", "category": "distributed systems", "difficulty": "hard"},
+    {"text": "Describe a time you disagreed with a product manager about scope. How did you resolve it?", "category": "behavioural", "difficulty": "easy"},
+    {"text": "How do you structure a large FastAPI codebase so several teams can work on it?", "category": "architecture", "difficulty": "medium"},
+    {"text": "What is your approach to writing tests for code that calls external APIs?", "category": "testing", "difficulty": "easy"}
+  ],
+  "criteria": [
+    {"id": "system_design", "name": "System design", "description": "Designs scalable, maintainable backend systems and explains trade-offs.", "weight": 3,
+     "anchors": {"1": "Cannot outline a coherent design.", "2": "Basic design, misses major concerns such as scale or failure.", "3": "Reasonable design covering the main concerns with some trade-offs.", "4": "Clear design, explicit trade-offs, handles scale and failure modes.", "5": "Excellent design; anticipates edge cases, operations, and evolution."}},
+    {"id": "debugging", "name": "Debugging and operations", "description": "Investigates production problems methodically and learns from incidents.", "weight": 2,
+     "anchors": {"1": "No method; guesses.", "2": "Some steps but unstructured.", "3": "Methodical approach using the obvious tools.", "4": "Hypothesis-driven, uses data, considers impact and rollback.", "5": "Expert; systematic, prevents recurrence, improves observability."}},
+    {"id": "data", "name": "Data and SQL", "description": "Models data well and understands query performance and consistency.", "weight": 2,
+     "anchors": {"1": "Weak SQL fundamentals.", "2": "Knows basics, misses indexing or consistency issues.", "3": "Solid fundamentals, can reason about indexes and plans.", "4": "Strong; reasons about locking, consistency, and data modelling trade-offs.", "5": "Deep expertise across modelling, performance, and correctness."}},
+    {"id": "communication", "name": "Communication", "description": "Explains ideas clearly and collaborates with non-engineers.", "weight": 1,
+     "anchors": {"1": "Hard to follow.", "2": "Understandable but disorganised.", "3": "Clear and organised.", "4": "Clear, concise, adapts to the audience.", "5": "Exceptionally clear; structures complex ideas simply."}}
+  ]
+}

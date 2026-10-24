@@ -1,0 +1,46 @@
+"""All tunables in one place. Model IDs are env-driven so they can change without code edits."""
+
+import os
+from pathlib import Path
+
+from dotenv import load_dotenv
+
+ROOT = Path(__file__).resolve().parent.parent
+load_dotenv(ROOT / ".env")
+
+# Models (PLAN §1). Override via env if Google renames/retires one.
+INTERVIEWER_MODEL = os.getenv("INTERVIEWER_MODEL", "gemini-3.5-flash-lite")
+FALLBACK_MODEL = os.getenv("FALLBACK_MODEL", "gemini-3.5-flash-lite")
+OBSERVER_MODEL = os.getenv("OBSERVER_MODEL", "gemini-3.5-flash-lite")
+PLANNER_MODEL = os.getenv("PLANNER_MODEL", "gemini-3.5-flash-lite")
+SCORER_MODEL = os.getenv("SCORER_MODEL", "gemini-3.5-flash-lite")
+EMBED_MODEL = os.getenv("EMBED_MODEL", "gemini-embedding-2")
+EMBED_DIM = 768
+INTERVIEWER_THINKING = os.getenv("INTERVIEWER_THINKING", "minimal")
+
+ELEVENLABS_VOICE_ID = os.getenv("ELEVENLABS_VOICE_ID", "")  # empty -> plugin default voice
+QDRANT_URL = os.getenv("QDRANT_URL", "http://localhost:6333")
+QDRANT_API_KEY = os.getenv("QDRANT_API_KEY") or None  # required for Qdrant Cloud
+QDRANT_COLLECTION = "kb_chunks"
+PLAN_PATH = Path(os.getenv("PLAN_PATH", ROOT / "fixtures" / "plan.json"))
+OUT_DIR = ROOT / "out"
+
+# Interview timing (PLAN §3.3, Q5). max_duration_sec comes from the job; these are the rest.
+CLOSING_SEC = 90
+MAX_FOLLOW_UPS = 2
+KEEP_CHAT_ITEMS = 16  # rolling window kept when moving to the next question (§3.4)
+
+# Turn taking (PLAN §3.5.1). Flux decides end-of-turn; eager threshold enables preemptive LLM.
+EOT_THRESHOLD = 0.8  # higher = more patient with thinking pauses
+EAGER_EOT_THRESHOLD = 0.5  # must be <= EOT_THRESHOLD
+EOT_TIMEOUT_MS = 6000  # max silence before Flux forces end-of-turn
+# LiveKit adds min_delay after the STT end-of-turn; Flux already waited, so keep it small.
+ENDPOINTING_MIN_DELAY = 0.2
+# LiveKit skips preemption for speech longer than 10 s by default; interview answers run longer.
+PREEMPT_MAX_SPEECH_SEC = 120.0
+PREEMPT_MAX_RETRIES = 5
+
+# Company Q&A grounding (PLAN §3.8). Tuned on evals/qa_eval.py.
+RAG_TOP_K = 4
+RAG_MIN_SCORE = float(os.getenv("RAG_MIN_SCORE", "0.5"))  # min dense cosine of best hit
+SCOPE_TIMEOUT_SEC = float(os.getenv("SCOPE_TIMEOUT_SEC", "5"))  # live latency budget; fails closed
