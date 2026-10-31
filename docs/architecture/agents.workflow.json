@@ -1,0 +1,309 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "Guru Agent Architecture",
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "handoffs",
+        "label": "Agent handoffs",
+        "focus": [
+          "planner",
+          "consent",
+          "interviewer",
+          "closing",
+          "transcript",
+          "scorer"
+        ],
+        "note": "Plan, consent, interview, closing, transcript, score."
+      },
+      {
+        "id": "helpers",
+        "label": "Silent helpers",
+        "focus": [
+          "interviewer",
+          "closing",
+          "observer",
+          "lookup",
+          "kb",
+          "timer"
+        ],
+        "note": "Observer, grounded company lookup, and the Python-owned clock."
+      },
+      {
+        "id": "exits",
+        "label": "Exits",
+        "focus": [
+          "consent",
+          "declined",
+          "timer",
+          "hardcap",
+          "transcript"
+        ],
+        "note": "Declined consent saves nothing; the hard cap forces goodbye."
+      }
+    ]
+  },
+  "lanes": [
+    {
+      "id": "prep",
+      "label": "Offline prep (CLI)"
+    },
+    {
+      "id": "live",
+      "label": "Live voice session (LiveKit AgentSession)"
+    },
+    {
+      "id": "helpers",
+      "label": "Off-hot-path helpers"
+    },
+    {
+      "id": "exits",
+      "label": "Forced exits",
+      "variant": "exception"
+    },
+    {
+      "id": "post",
+      "label": "Post-session (CLI)"
+    }
+  ],
+  "mainPath": [
+    "planner",
+    "consent",
+    "interviewer",
+    "closing",
+    "transcript",
+    "scorer"
+  ],
+  "nodes": [
+    {
+      "id": "kb",
+      "lane": "prep",
+      "col": 0,
+      "type": "database",
+      "label": "kb seed",
+      "sublabel": "writes Qdrant kb_chunks",
+      "width": 132
+    },
+    {
+      "id": "planner",
+      "lane": "prep",
+      "col": 1,
+      "type": "backend",
+      "label": "Planner",
+      "sublabel": "make_plan + fit_to_time",
+      "width": 132
+    },
+    {
+      "id": "consent",
+      "lane": "live",
+      "col": 2,
+      "type": "security",
+      "label": "ConsentTask",
+      "sublabel": "AgentTask[bool]",
+      "width": 132
+    },
+    {
+      "id": "interviewer",
+      "lane": "live",
+      "col": 3,
+      "type": "backend",
+      "label": "InterviewerAgent",
+      "sublabel": "per-question loop",
+      "tag": "advance_to_next_q",
+      "width": 132
+    },
+    {
+      "id": "closing",
+      "lane": "live",
+      "col": 4,
+      "type": "backend",
+      "label": "ClosingAgent",
+      "sublabel": "candidate Q&A",
+      "width": 132
+    },
+    {
+      "id": "transcript",
+      "lane": "live",
+      "col": 5,
+      "type": "database",
+      "label": "save_transcript",
+      "sublabel": "out/<session_id>.json",
+      "width": 132
+    },
+    {
+      "id": "timer",
+      "lane": "helpers",
+      "col": 2,
+      "type": "messagebus",
+      "label": "run_timer",
+      "sublabel": "cap − CLOSING_SEC",
+      "width": 132
+    },
+    {
+      "id": "observer",
+      "lane": "helpers",
+      "col": 3,
+      "type": "backend",
+      "label": "Observer",
+      "sublabel": "observe() → ObserverNote",
+      "width": 132
+    },
+    {
+      "id": "lookup",
+      "lane": "helpers",
+      "col": 4,
+      "type": "cloud",
+      "label": "kb.lookup",
+      "sublabel": "scope LLM ∥ Qdrant",
+      "width": 132
+    },
+    {
+      "id": "declined",
+      "lane": "exits",
+      "col": 3,
+      "type": "security",
+      "label": "Declined",
+      "sublabel": "say DECLINED, shutdown",
+      "width": 132
+    },
+    {
+      "id": "hardcap",
+      "lane": "exits",
+      "col": 4,
+      "type": "security",
+      "label": "Hard cap",
+      "sublabel": "say GOODBYE, shutdown",
+      "width": 132
+    },
+    {
+      "id": "scorer",
+      "lane": "post",
+      "col": 5,
+      "type": "backend",
+      "label": "Scorer",
+      "sublabel": "parallel per criterion",
+      "width": 132
+    }
+  ],
+  "edges": [
+    {
+      "id": "plan-json",
+      "from": "planner",
+      "to": "consent",
+      "label": "plan.json",
+      "variant": "emphasis"
+    },
+    {
+      "id": "consented",
+      "from": "consent",
+      "to": "interviewer",
+      "label": "consent_given",
+      "variant": "emphasis"
+    },
+    {
+      "id": "handoff-closing",
+      "from": "interviewer",
+      "to": "closing",
+      "label": "handoff",
+      "variant": "emphasis"
+    },
+    {
+      "id": "end-interview",
+      "from": "closing",
+      "to": "transcript",
+      "label": "end_interview",
+      "variant": "emphasis"
+    },
+    {
+      "id": "score",
+      "from": "transcript",
+      "to": "scorer",
+      "variant": "emphasis"
+    },
+    {
+      "id": "declined-edge",
+      "from": "consent",
+      "to": "declined",
+      "label": "consent_declined",
+      "variant": "security",
+      "role": "error"
+    },
+    {
+      "id": "spawn-timer",
+      "from": "interviewer",
+      "to": "timer",
+      "label": "spawn",
+      "variant": "dashed",
+      "role": "async"
+    },
+    {
+      "id": "grade",
+      "from": "interviewer",
+      "to": "observer",
+      "label": "each answer",
+      "variant": "dashed",
+      "role": "async"
+    },
+    {
+      "id": "ask-interviewer",
+      "from": "interviewer",
+      "to": "lookup",
+      "label": "company Q",
+      "variant": "dashed",
+      "role": "branch"
+    },
+    {
+      "id": "ask-closing",
+      "from": "closing",
+      "to": "lookup",
+      "variant": "dashed",
+      "role": "branch"
+    },
+    {
+      "id": "cap",
+      "from": "timer",
+      "to": "hardcap",
+      "label": "cap reached",
+      "variant": "security",
+      "role": "error"
+    },
+    {
+      "id": "cap-save",
+      "from": "hardcap",
+      "to": "transcript",
+      "label": "on shutdown",
+      "variant": "dashed",
+      "role": "branch"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Handoffs",
+      "items": [
+        "InterviewerAgent.on_enter awaits ConsentTask before question 1",
+        "advance_to_next_question returns ClosingAgent on the last question or when time_up is set",
+        "ClosingAgent.end_interview drains TTS, then shutdown saves the transcript"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "Helpers",
+      "items": [
+        "Observer runs per candidate turn; its note refreshes the NEXT reply's instructions",
+        "lookup_company_info fails closed to NO_ANSWER; OUT_OF_SCOPE wins over ANSWER",
+        "run_timer sets time_up at cap − 90 s, forces goodbye at cap"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Exits",
+      "items": [
+        "Declined consent: nothing is saved",
+        "Hard cap interrupts, says GOODBYE, shuts down; transcript still saved"
+      ]
+    }
+  ]
+}
