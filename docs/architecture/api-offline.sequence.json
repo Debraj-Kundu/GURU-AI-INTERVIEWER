@@ -1,0 +1,196 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "Guru Offline CLI Calls",
+    "quality_profile": "showcase",
+    "column_fit": "spread",
+    "viewBox": [
+      1000,
+      535
+    ],
+    "views": [
+      {
+        "id": "seed",
+        "label": "Seed KB",
+        "focus": [
+          "op",
+          "cli",
+          "gemini",
+          "qdrant"
+        ],
+        "note": "Chunk, embed with Gemini, upsert into Qdrant."
+      },
+      {
+        "id": "plan",
+        "label": "Plan",
+        "focus": [
+          "op",
+          "cli",
+          "openrouter",
+          "gemini"
+        ],
+        "note": "OpenRouter first, Gemini on failure; code enforces the time cap."
+      },
+      {
+        "id": "score",
+        "label": "Score",
+        "focus": [
+          "op",
+          "cli",
+          "openrouter"
+        ],
+        "note": "One parallel call per criterion, weighted aggregate."
+      }
+    ]
+  },
+  "participants": [
+    {
+      "id": "op",
+      "type": "external",
+      "label": "Operator",
+      "sublabel": "CLI / playground"
+    },
+    {
+      "id": "cli",
+      "type": "backend",
+      "label": "guru CLIs",
+      "sublabel": "kb · planner · scorer"
+    },
+    {
+      "id": "openrouter",
+      "type": "external",
+      "label": "OpenRouter",
+      "sublabel": "primary LLM"
+    },
+    {
+      "id": "gemini",
+      "type": "external",
+      "label": "Gemini",
+      "sublabel": "fallback LLM + embed"
+    },
+    {
+      "id": "qdrant",
+      "type": "database",
+      "label": "Qdrant",
+      "sublabel": "kb_chunks"
+    }
+  ],
+  "segments": [
+    {
+      "from": 163,
+      "to": 247,
+      "label": "1 · kb seed"
+    },
+    {
+      "from": 253,
+      "to": 367,
+      "label": "2 · planner"
+    },
+    {
+      "from": 373,
+      "to": 457,
+      "label": "3 · scorer"
+    }
+  ],
+  "messages": [
+    {
+      "id": "m1",
+      "from": "op",
+      "to": "cli",
+      "y": 175,
+      "label": "python -m guru.kb seed",
+      "variant": "emphasis"
+    },
+    {
+      "id": "m2",
+      "from": "cli",
+      "to": "gemini",
+      "y": 205,
+      "label": "embed_content",
+      "variant": "default"
+    },
+    {
+      "id": "m3",
+      "from": "cli",
+      "to": "qdrant",
+      "y": 235,
+      "label": "create_collection + upsert",
+      "variant": "default"
+    },
+    {
+      "id": "m4",
+      "from": "op",
+      "to": "cli",
+      "y": 265,
+      "label": "python -m guru.planner",
+      "variant": "emphasis"
+    },
+    {
+      "id": "m5",
+      "from": "cli",
+      "to": "openrouter",
+      "y": 295,
+      "label": "InterviewPlan JSON",
+      "variant": "default"
+    },
+    {
+      "id": "m6",
+      "from": "cli",
+      "to": "gemini",
+      "y": 325,
+      "label": "fallback generate_content",
+      "variant": "dashed"
+    },
+    {
+      "id": "m7",
+      "from": "cli",
+      "to": "op",
+      "y": 355,
+      "label": "fixtures/plan.json",
+      "variant": "return"
+    },
+    {
+      "id": "m8",
+      "from": "op",
+      "to": "cli",
+      "y": 385,
+      "label": "python -m guru.scorer",
+      "variant": "emphasis"
+    },
+    {
+      "id": "m9",
+      "from": "cli",
+      "to": "openrouter",
+      "y": 415,
+      "label": "CriterionScore × N",
+      "variant": "default"
+    },
+    {
+      "id": "m10",
+      "from": "cli",
+      "to": "op",
+      "y": 445,
+      "label": "<session_id>.score.json",
+      "variant": "return"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Scope",
+      "items": [
+        "Phase 1 has no HTTP endpoints; these are the CLI entry points",
+        "Phase 2 FastAPI endpoints (PLAN.md) get drawn once implemented"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "LLM routing",
+      "items": [
+        "guru.llm.generate_json: OpenRouter first, Gemini on any failure",
+        "Embeddings are Gemini-only"
+      ]
+    }
+  ]
+}

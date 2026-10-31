@@ -8,9 +8,11 @@ from dotenv import load_dotenv
 ROOT = Path(__file__).resolve().parent.parent
 load_dotenv(ROOT / ".env")
 
-# Models (PLAN §1). Override via env if Google renames/retires one.
+# Models (PLAN §1). Override via env if a provider renames/retires one.
+# Every text LLM call tries OpenRouter first; the Gemini model for that role is the fallback.
+OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "openai/gpt-6-luna")
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 INTERVIEWER_MODEL = os.getenv("INTERVIEWER_MODEL", "gemini-3.5-flash-lite")
-FALLBACK_MODEL = os.getenv("FALLBACK_MODEL", "gemini-3.5-flash-lite")
 OBSERVER_MODEL = os.getenv("OBSERVER_MODEL", "gemini-3.5-flash-lite")
 PLANNER_MODEL = os.getenv("PLANNER_MODEL", "gemini-3.5-flash-lite")
 SCORER_MODEL = os.getenv("SCORER_MODEL", "gemini-3.5-flash-lite")
@@ -24,6 +26,7 @@ QDRANT_API_KEY = os.getenv("QDRANT_API_KEY") or None  # required for Qdrant Clou
 QDRANT_COLLECTION = "kb_chunks"
 PLAN_PATH = Path(os.getenv("PLAN_PATH", ROOT / "fixtures" / "plan.json"))
 OUT_DIR = ROOT / "out"
+LOG_FILE = Path(os.getenv("LOG_FILE", ROOT / "logs" / "guru.txt"))  # file sink; console is the other
 
 # Interview timing (PLAN §3.3, Q5). max_duration_sec comes from the job; these are the rest.
 CLOSING_SEC = 90

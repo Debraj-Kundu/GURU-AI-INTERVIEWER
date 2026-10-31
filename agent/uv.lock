@@ -892,7 +892,7 @@ version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "google-genai" },
-    { name = "livekit-agents", extra = ["deepgram", "elevenlabs", "google", "silero"] },
+    { name = "livekit-agents", extra = ["deepgram", "elevenlabs", "google", "openai", "silero"] },
     { name = "pydantic" },
     { name = "python-dotenv" },
     { name = "qdrant-client", extra = ["fastembed"] },
@@ -906,7 +906,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "google-genai", specifier = ">=2.32.0" },
-    { name = "livekit-agents", extras = ["deepgram", "elevenlabs", "google", "silero"], specifier = "~=1.8" },
+    { name = "livekit-agents", extras = ["deepgram", "elevenlabs", "google", "openai", "silero"], specifier = "~=1.8" },
     { name = "pydantic", specifier = ">=2.14.1" },
     { name = "python-dotenv", specifier = ">=1.2.4" },
     { name = "qdrant-client", extras = ["fastembed"], specifier = ">=1.19.1" },
@@ -1268,6 +1268,12 @@ elevenlabs = [
 google = [
     { name = "livekit-plugins-google" },
 ]
+images = [
+    { name = "pillow" },
+]
+openai = [
+    { name = "livekit-plugins-openai" },
+]
 silero = [
     { name = "livekit-plugins-silero" },
 ]
@@ -1374,6 +1380,20 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/0a/2c/8f911cb8d88ffa9b9d4e0c75c4a1197c7ada3d635745464fb74f05fd39db/livekit_plugins_google-1.8.8.tar.gz", hash = "sha256:d01b5907ededb02185b7a363e12e62566d7813d9788293e7cf244698330ecf07", size = 64139, upload-time = "2026-10-15T06:07:51.096Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/22/f0/953e4f72977ea6ce0cb0a67a2e8b7e2ffd4ddd1fbb7506bf2f867252761f/livekit_plugins_google-1.8.8-py3-none-any.whl", hash = "sha256:a44151e7397dc6cb2bfc5b657704d8db1673d6c6a9561e1ea2db8e0be85ea87b", size = 72326, upload-time = "2026-10-15T06:07:49.514Z" },
+]
+
+[[package]]
+name = "livekit-plugins-openai"
+version = "1.8.8"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "httpx2" },
+    { name = "livekit-agents", extra = ["codecs", "images"] },
+    { name = "openai" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/ff/d2/b0fc7cd550c27211901f33a6f688a939cdc3c9ab45bcabfc9d246acf53b7/livekit_plugins_openai-1.8.8.tar.gz", hash = "sha256:04fd461e06a102805a84a199c411449a807c8aa6c3867e30378002e1825c3c78", size = 35540, upload-time = "2026-10-15T06:08:49.917Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/c0/76/6ec442d94d05baf61cf4086657bf618cc06d019fc240c8719e018541b0fd/livekit_plugins_openai-1.8.8-py3-none-any.whl", hash = "sha256:5998b47a7913030c37cd52910e3495087773c2538fab7f5aa1de12fd16c11b64", size = 41442, upload-time = "2026-10-15T06:08:48.636Z" },
 ]
 
 [[package]]

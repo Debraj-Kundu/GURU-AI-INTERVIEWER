@@ -1,0 +1,568 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Guru Class Map",
+    "quality_profile": "showcase",
+    "viewBox": [
+      1270,
+      840
+    ],
+    "views": [
+      {
+        "id": "agents",
+        "label": "Agent classes",
+        "focus": [
+          "consent",
+          "interviewer",
+          "closing",
+          "state"
+        ],
+        "note": "LiveKit agents share one State object."
+      },
+      {
+        "id": "plan",
+        "label": "Plan model tree",
+        "focus": [
+          "plan",
+          "job",
+          "interviewplan",
+          "bankquestion",
+          "criterion",
+          "plannedquestion",
+          "skippedquestion"
+        ],
+        "note": "What the interviewer loads from plan.json."
+      },
+      {
+        "id": "llm-outputs",
+        "label": "LLM output schemas",
+        "focus": [
+          "observernote",
+          "criterionscore",
+          "scopelabel"
+        ],
+        "note": "Structured JSON returned by Observer, Scorer, and scope check."
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "consent",
+      "type": "security",
+      "label": "ConsentTask",
+      "sublabel": "AgentTask[bool]",
+      "pos": [
+        60,
+        80
+      ],
+      "size": [
+        170,
+        62
+      ],
+      "tag": "interviewer.py:121"
+    },
+    {
+      "id": "interviewer",
+      "type": "backend",
+      "label": "InterviewerAgent",
+      "sublabel": "livekit Agent",
+      "pos": [
+        330,
+        80
+      ],
+      "size": [
+        170,
+        62
+      ],
+      "tag": "interviewer.py:146"
+    },
+    {
+      "id": "closing",
+      "type": "backend",
+      "label": "ClosingAgent",
+      "sublabel": "livekit Agent",
+      "pos": [
+        600,
+        80
+      ],
+      "size": [
+        170,
+        62
+      ],
+      "tag": "interviewer.py:217"
+    },
+    {
+      "id": "state",
+      "type": "database",
+      "label": "State",
+      "sublabel": "@dataclass",
+      "pos": [
+        330,
+        240
+      ],
+      "size": [
+        170,
+        62
+      ],
+      "tag": "interviewer.py:51"
+    },
+    {
+      "id": "plan",
+      "type": "frontend",
+      "label": "Plan",
+      "sublabel": "BaseModel",
+      "pos": [
+        330,
+        420
+      ],
+      "size": [
+        170,
+        62
+      ],
+      "tag": "models.py:53"
+    },
+    {
+      "id": "observernote",
+      "type": "frontend",
+      "label": "ObserverNote",
+      "sublabel": "BaseModel",
+      "pos": [
+        620,
+        420
+      ],
+      "size": [
+        170,
+        62
+      ],
+      "tag": "models.py:60"
+    },
+    {
+      "id": "criterionscore",
+      "type": "frontend",
+      "label": "CriterionScore",
+      "sublabel": "BaseModel",
+      "pos": [
+        840,
+        420
+      ],
+      "size": [
+        170,
+        62
+      ],
+      "tag": "models.py:69"
+    },
+    {
+      "id": "scopelabel",
+      "type": "frontend",
+      "label": "ScopeLabel",
+      "sublabel": "BaseModel",
+      "pos": [
+        1060,
+        420
+      ],
+      "size": [
+        170,
+        62
+      ],
+      "tag": "models.py:77"
+    },
+    {
+      "id": "job",
+      "type": "frontend",
+      "label": "Job",
+      "sublabel": "BaseModel",
+      "pos": [
+        150,
+        580
+      ],
+      "size": [
+        170,
+        62
+      ],
+      "tag": "models.py:23"
+    },
+    {
+      "id": "interviewplan",
+      "type": "frontend",
+      "label": "InterviewPlan",
+      "sublabel": "BaseModel",
+      "pos": [
+        510,
+        580
+      ],
+      "size": [
+        170,
+        62
+      ],
+      "tag": "models.py:47"
+    },
+    {
+      "id": "bankquestion",
+      "type": "frontend",
+      "label": "BankQuestion",
+      "sublabel": "BaseModel",
+      "pos": [
+        40,
+        740
+      ],
+      "size": [
+        170,
+        62
+      ],
+      "tag": "models.py:8"
+    },
+    {
+      "id": "criterion",
+      "type": "frontend",
+      "label": "Criterion",
+      "sublabel": "BaseModel",
+      "pos": [
+        240,
+        740
+      ],
+      "size": [
+        170,
+        62
+      ],
+      "tag": "models.py:15"
+    },
+    {
+      "id": "plannedquestion",
+      "type": "frontend",
+      "label": "PlannedQuestion",
+      "sublabel": "BaseModel",
+      "pos": [
+        440,
+        740
+      ],
+      "size": [
+        170,
+        62
+      ],
+      "tag": "models.py:34"
+    },
+    {
+      "id": "skippedquestion",
+      "type": "frontend",
+      "label": "SkippedQuestion",
+      "sublabel": "BaseModel",
+      "pos": [
+        640,
+        740
+      ],
+      "size": [
+        170,
+        62
+      ],
+      "tag": "models.py:42"
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "guru/interviewer.py",
+      "wraps": [
+        "consent",
+        "interviewer",
+        "closing",
+        "state"
+      ]
+    },
+    {
+      "kind": "region",
+      "label": "guru/models.py (pydantic)",
+      "wraps": [
+        "plan",
+        "observernote",
+        "criterionscore",
+        "scopelabel",
+        "job",
+        "interviewplan",
+        "bankquestion",
+        "criterion",
+        "plannedquestion",
+        "skippedquestion"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "interviewer-consent",
+      "from": "interviewer",
+      "to": "consent",
+      "label": "awaits",
+      "variant": "default",
+      "fromSide": "left",
+      "toSide": "right"
+    },
+    {
+      "id": "interviewer-closing",
+      "from": "interviewer",
+      "to": "closing",
+      "label": "hands off",
+      "variant": "emphasis",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "interviewer-state",
+      "from": "interviewer",
+      "to": "state",
+      "label": "self.s",
+      "variant": "default",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelDy": 24
+    },
+    {
+      "id": "consent-state",
+      "from": "consent",
+      "to": "state",
+      "label": "reads s",
+      "variant": "dashed",
+      "fromSide": "bottom",
+      "toSide": "left"
+    },
+    {
+      "id": "closing-state",
+      "from": "closing",
+      "to": "state",
+      "label": "self.s",
+      "variant": "default",
+      "fromSide": "bottom",
+      "toSide": "right"
+    },
+    {
+      "id": "state-plan",
+      "from": "state",
+      "to": "plan",
+      "label": "plan",
+      "variant": "default",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelDy": 24
+    },
+    {
+      "id": "state-observernote",
+      "from": "state",
+      "to": "observernote",
+      "label": "notes[]",
+      "variant": "dashed",
+      "fromSide": "right",
+      "toSide": "top"
+    },
+    {
+      "id": "plan-job",
+      "from": "plan",
+      "to": "job",
+      "label": "job",
+      "variant": "default",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "plan-interviewplan",
+      "from": "plan",
+      "to": "interviewplan",
+      "label": "plan",
+      "variant": "default",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "job-bankquestion",
+      "from": "job",
+      "to": "bankquestion",
+      "label": "questions[]",
+      "variant": "default",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "job-criterion",
+      "from": "job",
+      "to": "criterion",
+      "label": "criteria[]",
+      "variant": "default",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "interviewplan-plannedquestion",
+      "from": "interviewplan",
+      "to": "plannedquestion",
+      "label": "questions[]",
+      "variant": "default",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "interviewplan-skippedquestion",
+      "from": "interviewplan",
+      "to": "skippedquestion",
+      "label": "skipped[]",
+      "variant": "default",
+      "fromSide": "bottom",
+      "toSide": "top"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "rose",
+      "title": "ConsentTask(AgentTask[bool])  ·  interviewer.py",
+      "items": [
+        "vars: (none; instructions from prompts.CONSENT)",
+        "__init__(s: State)",
+        "async on_enter()",
+        "@function_tool async consent_given() → complete(True)",
+        "@function_tool async consent_declined() → complete(False)"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "InterviewerAgent(Agent)  ·  interviewer.py",
+      "items": [
+        "vars: s: State",
+        "__init__(s: State)",
+        "async on_enter()",
+        "async refresh()",
+        "@function_tool async advance_to_next_question() → str | (ClosingAgent, str)",
+        "@function_tool async lookup_company_info(question: str) → str"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "ClosingAgent(Agent)  ·  interviewer.py",
+      "items": [
+        "vars: s: State",
+        "__init__(s: State)",
+        "async on_enter()",
+        "@function_tool async lookup_company_info(question: str) → str",
+        "@function_tool async end_interview()"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "State (@dataclass)  ·  interviewer.py",
+      "items": [
+        "plan: Plan",
+        "session_id: str",
+        "started_at: float = 0.0",
+        "consented: bool = False",
+        "idx: int = 0",
+        "answers: list[str]",
+        "question_started_at: float = 0.0",
+        "time_up: bool = False",
+        "note: str = \"\"",
+        "notes: list[dict]",
+        "latencies: list[float]",
+        "llm_calls: int = 0",
+        "llm_cancelled: int = 0",
+        "timer: asyncio.Task | None",
+        "@property question → PlannedQuestion"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "Plan  ·  models.py",
+      "items": [
+        "job: Job",
+        "plan: InterviewPlan"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "Job  ·  models.py",
+      "items": [
+        "id: str",
+        "org_id: str",
+        "title: str",
+        "company_name: str",
+        "jd_text: str",
+        "max_duration_sec: int = 600 (300..3600)",
+        "questions: list[BankQuestion]",
+        "criteria: list[Criterion]"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "InterviewPlan  ·  models.py",
+      "items": [
+        "questions: list[PlannedQuestion]",
+        "skipped_questions: list[SkippedQuestion] = []",
+        "allowed_tech_stack: list[str]"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "BankQuestion  ·  models.py",
+      "items": [
+        "text: str",
+        "category: str = \"\"",
+        "difficulty: str = \"\"",
+        "expected_signals: list[str] = []"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "Criterion  ·  models.py",
+      "items": [
+        "id: str",
+        "name: str",
+        "description: str",
+        "weight: float (> 0)",
+        "anchors: dict[str, str]"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "PlannedQuestion  ·  models.py",
+      "items": [
+        "text: str",
+        "expected_signals: list[str]",
+        "follow_up_probes: list[str]",
+        "time_budget_sec: int",
+        "linked_criteria: list[str]"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "SkippedQuestion  ·  models.py",
+      "items": [
+        "text: str",
+        "reason: str"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "ObserverNote  ·  models.py",
+      "items": [
+        "coverage: float (0..1)",
+        "depth: shallow | adequate | deep",
+        "signals_hit: list[str]",
+        "signals_missing: list[str]",
+        "red_flags: list[str]",
+        "suggested_followup: str | None"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "CriterionScore  ·  models.py",
+      "items": [
+        "criterion_id: str",
+        "score: int | None (1..5)",
+        "insufficient_evidence: bool",
+        "evidence_turns: list[int]",
+        "rationale: str"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "ScopeLabel  ·  models.py",
+      "items": [
+        "label: company_info | future_projects | tech_outside_jd | other"
+      ]
+    }
+  ]
+}

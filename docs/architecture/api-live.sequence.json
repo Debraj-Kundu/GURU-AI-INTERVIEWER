@@ -1,0 +1,243 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "Guru Live Interview Calls",
+    "quality_profile": "showcase",
+    "column_fit": "spread",
+    "viewBox": [
+      1000,
+      670
+    ],
+    "views": [
+      {
+        "id": "voice",
+        "label": "Voice loop",
+        "focus": [
+          "livekit",
+          "worker",
+          "deepgram",
+          "openrouter",
+          "gemini",
+          "eleven"
+        ],
+        "note": "STT end-of-turn, LLM reply via FallbackAdapter, TTS."
+      },
+      {
+        "id": "grounding",
+        "label": "Company lookup",
+        "focus": [
+          "worker",
+          "openrouter",
+          "gemini",
+          "qdrant"
+        ],
+        "note": "ScopeLabel and hybrid search run in one TaskGroup."
+      }
+    ]
+  },
+  "participants": [
+    {
+      "id": "op",
+      "type": "external",
+      "label": "Operator",
+      "sublabel": "CLI / playground"
+    },
+    {
+      "id": "livekit",
+      "type": "cloud",
+      "label": "LiveKit Cloud",
+      "sublabel": "room + dispatch"
+    },
+    {
+      "id": "worker",
+      "type": "backend",
+      "label": "Worker",
+      "sublabel": "guru.interviewer"
+    },
+    {
+      "id": "deepgram",
+      "type": "external",
+      "label": "Deepgram",
+      "sublabel": "Flux STT"
+    },
+    {
+      "id": "eleven",
+      "type": "external",
+      "label": "ElevenLabs",
+      "sublabel": "TTS"
+    },
+    {
+      "id": "openrouter",
+      "type": "external",
+      "label": "OpenRouter",
+      "sublabel": "primary LLM"
+    },
+    {
+      "id": "gemini",
+      "type": "external",
+      "label": "Gemini",
+      "sublabel": "fallback LLM + embed"
+    },
+    {
+      "id": "qdrant",
+      "type": "database",
+      "label": "Qdrant",
+      "sublabel": "kb_chunks"
+    }
+  ],
+  "segments": [
+    {
+      "from": 178,
+      "to": 232,
+      "label": "Join"
+    },
+    {
+      "from": 238,
+      "to": 442,
+      "label": "Candidate turn"
+    },
+    {
+      "from": 448,
+      "to": 562,
+      "label": "Observer + lookup tool"
+    },
+    {
+      "from": 568,
+      "to": 592,
+      "label": "Shutdown"
+    }
+  ],
+  "messages": [
+    {
+      "id": "m1",
+      "from": "op",
+      "to": "livekit",
+      "y": 190,
+      "label": "dispatch agent interviewer",
+      "variant": "emphasis"
+    },
+    {
+      "id": "m2",
+      "from": "livekit",
+      "to": "worker",
+      "y": 220,
+      "label": "rtc_session → entrypoint",
+      "variant": "emphasis"
+    },
+    {
+      "id": "m3",
+      "from": "worker",
+      "to": "deepgram",
+      "y": 250,
+      "label": "candidate audio",
+      "variant": "default"
+    },
+    {
+      "id": "m4",
+      "from": "deepgram",
+      "to": "worker",
+      "y": 280,
+      "label": "transcript + end-of-turn",
+      "variant": "return"
+    },
+    {
+      "id": "m5",
+      "from": "worker",
+      "to": "openrouter",
+      "y": 310,
+      "label": "reply (FallbackAdapter)",
+      "variant": "default"
+    },
+    {
+      "id": "m6",
+      "from": "worker",
+      "to": "gemini",
+      "y": 340,
+      "label": "fallback reply",
+      "variant": "dashed"
+    },
+    {
+      "id": "m7",
+      "from": "worker",
+      "to": "eleven",
+      "y": 370,
+      "label": "synthesize reply",
+      "variant": "default"
+    },
+    {
+      "id": "m8",
+      "from": "eleven",
+      "to": "worker",
+      "y": 400,
+      "label": "audio",
+      "variant": "return"
+    },
+    {
+      "id": "m9",
+      "from": "worker",
+      "to": "livekit",
+      "y": 430,
+      "label": "agent audio track",
+      "variant": "return"
+    },
+    {
+      "id": "m10",
+      "from": "worker",
+      "to": "openrouter",
+      "y": 460,
+      "label": "observe → ObserverNote",
+      "variant": "dashed"
+    },
+    {
+      "id": "m11",
+      "from": "worker",
+      "to": "openrouter",
+      "y": 490,
+      "label": "lookup: ScopeLabel",
+      "variant": "security"
+    },
+    {
+      "id": "m12",
+      "from": "worker",
+      "to": "gemini",
+      "y": 520,
+      "label": "lookup: embed question",
+      "variant": "default"
+    },
+    {
+      "id": "m13",
+      "from": "worker",
+      "to": "qdrant",
+      "y": 550,
+      "label": "hybrid RRF + dense query",
+      "variant": "default"
+    },
+    {
+      "id": "m14",
+      "from": "worker",
+      "to": "op",
+      "y": 580,
+      "label": "out/<session_id>.json",
+      "variant": "return"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Voice loop",
+      "items": [
+        "Flux STT decides end-of-turn; preemptive LLM, no preemptive TTS",
+        "FallbackAdapter: OpenRouter → Gemini, 10 s per attempt"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Observer + lookup",
+      "items": [
+        "Observer runs off the hot path per answer; its note shapes the next reply",
+        "lookup_company_info is an LLM tool call inside the reply; fails closed to NO_ANSWER"
+      ]
+    }
+  ]
+}
