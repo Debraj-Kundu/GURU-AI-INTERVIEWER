@@ -1,0 +1,52 @@
+stateDiagram-v2
+  [*] --> Prewarmed : prewarm loads VAD, LLM chain, BM25
+  Prewarmed --> Consent : entrypoint, session.start, InterviewerAgent.on_enter awaits ConsentTask
+
+  Consent --> Declined : consent_declined
+  Declined --> Ended : say DECLINED, shutdown
+  Consent --> Interviewing : consent_given, consented=true, timer starts
+
+  state Interviewing {
+    [*] --> Asking : idx=0, answers=[]
+    Asking --> Listening : question spoken
+    Listening --> Answered : turn committed, answers += text, Observer runs async
+    Answered --> Decide
+    state Decide <<choice>>
+    Decide --> FollowUp : LLM asks follow-up, allowed while answers below 2
+    Decide --> Advance : LLM calls advance_to_next_question
+    FollowUp --> Listening : follow-up spoken
+    Advance --> Asking : more questions, idx += 1, answers=[], note cleared, context truncated
+    Advance --> [*] : last question or time_up
+  }
+
+  Interviewing --> Closing : handoff to ClosingAgent
+  Interviewing --> Ended : hard cap or tab closed
+
+  state Closing {
+    [*] --> InviteQuestions : on_enter asks for questions
+    InviteQuestions --> Lookup : company question
+    Lookup --> InviteQuestions : ANSWER or NO_ANSWER or OUT_OF_SCOPE reply
+    InviteQuestions --> [*] : no more questions, end_interview
+  }
+
+  Closing --> Ended : shutdown drain=true
+  Closing --> Ended : hard cap or tab closed
+
+  Ended --> Saved : shutdown callback, save_transcript if consented
+  Ended --> [*] : not consented, nothing saved
+  Saved --> [*]
+
+  note right of Interviewing
+    Prompt forces advance when:
+    answers reach MAX_FOLLOW_UPS (2),
+    question over its time budget,
+    or time_up from the timer.
+    Observer note lands in State.note
+    and shapes the NEXT reply.
+  end note
+
+  note right of Closing
+    Timer: at cap minus 90 s sets time_up,
+    at cap interrupts, says GOODBYE,
+    then shuts down.
+  end note

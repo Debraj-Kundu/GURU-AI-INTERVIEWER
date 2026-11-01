@@ -105,7 +105,7 @@ def interviewer_instructions(s: State) -> str:
 async def lookup_tool(s: State, question: str) -> str:
     jlog("Calling company lookup (scope check + Qdrant search)", function_name="lookup_tool")
     try:
-        result = await kb.lookup(s.plan.job, s.plan.plan.allowed_tech_stack, question)
+        result = await kb.lookup(s.plan.job, s.plan.plan.allowed_tech_stack, question, session_id=s.session_id)
     except Exception as e:
         # Fail closed: if the scope check or search breaks, refuse rather than guess.
         jlog("Company lookup failed, answering NO_ANSWER", function_name="lookup_tool", err=e, level=logging.ERROR)
@@ -275,7 +275,7 @@ async def observe(agent: InterviewerAgent, answer: str) -> None:
     prompt = prompts.OBSERVER.format(question=q.text, signals="; ".join(q.expected_signals), answer=answer)
     jlog("Calling Observer LLM", function_name="observe", output={"question": idx + 1})
     try:
-        note = await generate_json(config.OBSERVER_MODEL, prompt, ObserverNote, timeout=10)
+        note = await generate_json(config.OBSERVER_MODEL, prompt, ObserverNote, timeout=10, session_id=s.session_id)
     except Exception as e:
         # interview continues without the hint
         jlog("Observer failed, continuing without a note", function_name="observe", err=e, level=logging.ERROR)
@@ -288,11 +288,19 @@ async def observe(agent: InterviewerAgent, answer: str) -> None:
 
 
 def build_llm() -> llm.LLM:
+    if not config.OPENROUTER_API_KEY:  # same check with_openrouter() made; avoids falling back to OPENAI_API_KEY
+        raise ValueError("OPENROUTER_API_KEY is required")
     llms: list[llm.LLM] = [
-        openai.LLM.with_openrouter(
+        # Plain LLM, not with_openrouter(), which has no max_completion_tokens.
+        openai.LLM(
             model=config.OPENROUTER_MODEL,
             api_key=config.OPENROUTER_API_KEY,
-            app_name="Guru"
+            base_url="https://openrouter.ai/api/v1",
+            extra_headers={"X-Title": "Guru"},
+            extra_body={"provider": {"data_collection": "deny"}},
+            # Reasoning was most of the output tokens, and output tokens drive latency (OpenAI latency guide).
+            reasoning_effort=config.INTERVIEWER_THINKING,  # type: ignore[arg-type]  # validated by the API
+            max_completion_tokens=config.VOICE_MAX_TOKENS,
         ),
         google.LLM(
             model=config.INTERVIEWER_MODEL,

@@ -18,7 +18,8 @@ PLANNER_MODEL = os.getenv("PLANNER_MODEL", "gemini-3.5-flash-lite")
 SCORER_MODEL = os.getenv("SCORER_MODEL", "gemini-3.5-flash-lite")
 EMBED_MODEL = os.getenv("EMBED_MODEL", "gemini-embedding-2")
 EMBED_DIM = 768
-INTERVIEWER_THINKING = os.getenv("INTERVIEWER_THINKING", "minimal")
+INTERVIEWER_THINKING = os.getenv("INTERVIEWER_THINKING", "minimal")  # Gemini thinking + OpenRouter reasoning_effort
+VOICE_MAX_TOKENS = 400  # reasoning + a spoken reply; replies were under 110 tokens, so this only stops runaways
 
 ELEVENLABS_VOICE_ID = os.getenv("ELEVENLABS_VOICE_ID", "")  # empty -> plugin default voice
 QDRANT_URL = os.getenv("QDRANT_URL", "http://localhost:6333")

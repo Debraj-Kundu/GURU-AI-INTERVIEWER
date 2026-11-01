@@ -1,0 +1,133 @@
+classDiagram
+  direction LR
+
+  %% ---------- Inputs: job setup ----------
+  class Job {
+    +id: str
+    +org_id: str
+    +title: str
+    +company_name: str
+    +jd_text: str
+    +max_duration_sec: int = 600 (300 to 3600)
+    +questions: list~BankQuestion~
+    +criteria: list~Criterion~
+  }
+  class BankQuestion {
+    +text: str
+    +category: str
+    +difficulty: str
+    +expected_signals: list~str~
+  }
+  class Criterion {
+    +id: str
+    +name: str
+    +description: str
+    +weight: float (above 0)
+    +anchors: dict level 1-5 to behaviour
+  }
+
+  %% ---------- Planner output ----------
+  class Plan {
+    +job: Job
+    +plan: InterviewPlan
+  }
+  class InterviewPlan {
+    +questions: list~PlannedQuestion~
+    +skipped_questions: list~SkippedQuestion~
+    +allowed_tech_stack: list~str~
+  }
+  class PlannedQuestion {
+    +text: str
+    +expected_signals: list~str~
+    +follow_up_probes: list~str~
+    +time_budget_sec: int
+    +linked_criteria: list~str~
+  }
+  class SkippedQuestion {
+    +text: str
+    +reason: str
+  }
+
+  %% ---------- LLM outputs ----------
+  class ObserverNote {
+    +coverage: float 0 to 1
+    +depth: shallow / adequate / deep
+    +signals_hit: list~str~
+    +signals_missing: list~str~
+    +red_flags: list~str~
+    +suggested_followup: Optional~str~
+  }
+  class CriterionScore {
+    +criterion_id: str
+    +score: Optional~int~ 1 to 5
+    +insufficient_evidence: bool
+    +evidence_turns: list~int~
+    +rationale: str
+  }
+  class ScopeLabel {
+    +label: company_info / future_projects / tech_outside_jd / other
+  }
+
+  %% ---------- Runtime ----------
+  class State {
+    <<dataclass>>
+    +plan: Plan
+    +session_id: str
+    +started_at: float
+    +consented: bool
+    +idx: int
+    +answers: list~str~
+    +question_started_at: float
+    +time_up: bool
+    +note: str
+    +notes: list~dict~
+    +latencies: list~float~
+    +llm_calls: int
+    +llm_cancelled: int
+    +timer: Optional~Task~
+    +question() PlannedQuestion
+  }
+
+  class ConsentTask {
+    <<AgentTask bool>>
+    +on_enter()
+    +consent_given()
+    +consent_declined()
+  }
+  class InterviewerAgent {
+    <<Agent>>
+    +s: State
+    +on_enter()
+    +refresh()
+    +advance_to_next_question()
+    +lookup_company_info(question)
+  }
+  class ClosingAgent {
+    <<Agent>>
+    +s: State
+    +on_enter()
+    +lookup_company_info(question)
+    +end_interview()
+  }
+
+  %% ---------- Relationships ----------
+  Job "1" *-- "*" BankQuestion : questions
+  Job "1" *-- "*" Criterion : criteria
+  Plan "1" *-- "1" Job : job
+  Plan "1" *-- "1" InterviewPlan : plan
+  InterviewPlan "1" *-- "*" PlannedQuestion : questions
+  InterviewPlan "1" *-- "*" SkippedQuestion : skipped_questions
+  PlannedQuestion ..> Criterion : linked_criteria ids
+  CriterionScore ..> Criterion : criterion_id
+
+  State --> Plan : plan
+  State ..> PlannedQuestion : question() is plan.questions at idx
+  State ..> ObserverNote : notes hold dumped notes
+
+  InterviewerAgent --> State : shares
+  ClosingAgent --> State : shares
+  ConsentTask ..> State : reads company_name only
+  InterviewerAgent ..> ConsentTask : awaits in on_enter
+  InterviewerAgent ..> ClosingAgent : handoff from advance_to_next_question
+  InterviewerAgent ..> ScopeLabel : lookup_company_info via kb.lookup
+  ClosingAgent ..> ScopeLabel : lookup_company_info via kb.lookup
