@@ -22,26 +22,31 @@ def aggregate(scores: list[CriterionScore], criteria: list[Criterion]) -> float 
     return round(sum(score * w for score, w in rated) / total, 2)
 
 
-async def score_criterion(c: Criterion, transcript: str, notes: str) -> CriterionScore:
+async def score_criterion(c: Criterion, context: str, session_id: str) -> CriterionScore:
     prompt = prompts.SCORER.format(
         name=c.name,
         id=c.id,
         description=c.description,
         anchors="\n".join(f"{k}: {v}" for k, v in sorted(c.anchors.items())),
-        notes=notes,
-        transcript=transcript,
     )
-    s = await llm.generate_json(config.SCORER_MODEL, prompt, CriterionScore, timeout=120)
+    # flex: nobody waits on the score (the candidate never sees it), so take the cheaper tier.
+    s = await llm.generate_json(
+        config.SCORER_MODEL, prompt, CriterionScore, timeout=120, context=context, session_id=session_id, flex=True
+    )
     s.criterion_id = c.id  # never trust the model to echo the id back
     return s
 
 
 async def score_session(session: dict, plan: Plan) -> dict:
     transcript = "\n".join(f"{t['idx']} {t['speaker']}: {t['text']}" for t in session["turns"])
-    notes = json.dumps(session.get("notes", []))
+    context = prompts.SCORER_CONTEXT.format(notes=json.dumps(session.get("notes", [])), transcript=transcript)
+    first, *rest = plan.job.criteria
+    # The first call writes the shared-context cache; firing all at once would make every call miss it.
+    sid = session["session_id"]
+    scores = [await score_criterion(first, context, sid)]
     async with asyncio.TaskGroup() as tg:
-        tasks = [tg.create_task(score_criterion(c, transcript, notes)) for c in plan.job.criteria]
-    scores = [t.result() for t in tasks]
+        tasks = [tg.create_task(score_criterion(c, context, sid)) for c in rest]
+    scores += [t.result() for t in tasks]
     return {
         "session_id": session["session_id"],
         "overall": aggregate(scores, plan.job.criteria),

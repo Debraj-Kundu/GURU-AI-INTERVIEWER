@@ -121,7 +121,7 @@ async def search(job: Job, question: str) -> tuple[float, list[dict]]:
     return top, [p.payload or {} for p in fused.points]
 
 
-async def lookup(job: Job, allowed_tech: list[str], question: str) -> dict:
+async def lookup(job: Job, allowed_tech: list[str], question: str, session_id: str = "") -> dict:
     """Three-layer grounding (PLAN §3.8). Scope check and retrieval run in parallel."""
     async with asyncio.TaskGroup() as tg:
         scope_t = tg.create_task(
@@ -130,6 +130,7 @@ async def lookup(job: Job, allowed_tech: list[str], question: str) -> dict:
                 prompts.SCOPE.format(allowed=", ".join(allowed_tech), question=question),
                 ScopeLabel,
                 timeout=config.SCOPE_TIMEOUT_SEC,
+                session_id=session_id,
             )
         )
         search_t = tg.create_task(search(job, question))

@@ -38,7 +38,10 @@ async def make_plan(job: Job, company_summary: str) -> InterviewPlan:
         criteria=json.dumps([c.model_dump() for c in job.criteria], indent=1),
         company=company_summary[:COMPANY_SUMMARY_CHARS],
     )
-    plan = await llm.generate_json(config.PLANNER_MODEL, prompt, InterviewPlan, timeout=120)
+    # flex: planning runs when the recruiter saves the job, not while a candidate waits.
+    plan = await llm.generate_json(
+        config.PLANNER_MODEL, prompt, InterviewPlan, timeout=120, session_id=f"job:{job.id}", flex=True
+    )
     plan = fit_to_time(plan, job.max_duration_sec - config.CLOSING_SEC)
     if not plan.questions:
         raise ValueError("planner produced no questions that fit the time cap")
