@@ -889,9 +889,10 @@ wheels = [
 [[package]]
 name = "guru-agent"
 version = "0.1.0"
-source = { virtual = "." }
+source = { editable = "." }
 dependencies = [
     { name = "google-genai" },
+    { name = "httpx" },
     { name = "livekit-agents", extra = ["deepgram", "elevenlabs", "google", "openai", "silero"] },
     { name = "pydantic" },
     { name = "python-dotenv" },
@@ -906,6 +907,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "google-genai", specifier = ">=2.32.0" },
+    { name = "httpx", specifier = ">=0.28.1" },
     { name = "livekit-agents", extras = ["deepgram", "elevenlabs", "google", "openai", "silero"], specifier = "~=1.8" },
     { name = "pydantic", specifier = ">=2.14.1" },
     { name = "python-dotenv", specifier = ">=1.2.4" },

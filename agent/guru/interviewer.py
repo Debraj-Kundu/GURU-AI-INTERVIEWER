@@ -6,10 +6,12 @@ Run:  uv run python -m guru.interviewer dev      (connects to LiveKit Cloud as a
 import asyncio
 import json
 import logging
+import re
 import statistics
 import time
 from dataclasses import dataclass, field
 
+import httpx
 from google.genai import types
 from livekit.agents import (
     Agent,
@@ -387,12 +389,25 @@ def build_session(proc: JobProcess, keyterms: list[str]) -> AgentSession:
     )
 
 
+def is_session_id(metadata: str | None) -> bool:
+    """Backend dispatches carry the session id (32 hex chars); console/dev runs don't."""
+    return bool(metadata and re.fullmatch(r"[0-9a-f]{32}", metadata))
+
+
 @logged
-def save_transcript(session: AgentSession, s: State) -> None:
-    """Phase 1 writes JSON; Phase 2 publishes interview.completed to RabbitMQ instead."""
-    if not s.consented:
-        jlog("Not saving transcript: no consent", function_name="save_transcript")
-        return  # declined consent: nothing is kept
+async def load_plan(metadata: str | None) -> Plan:
+    if not is_session_id(metadata):
+        jlog("No session in dispatch metadata: using the fixture plan", function_name="load_plan", output={"path": str(config.PLAN_PATH)})
+        return Plan.model_validate_json(config.PLAN_PATH.read_text(encoding="utf-8"))
+    async with httpx.AsyncClient(timeout=10) as client:
+        r = await client.get(
+            f"{config.API_URL}/internal/sessions/{metadata}/plan", headers={"X-Service-Token": config.SERVICE_TOKEN}
+        )
+        r.raise_for_status()
+    return Plan.model_validate(r.json())
+
+
+def build_results(session: AgentSession, s: State) -> dict:
     turns = [
         {"idx": i, "speaker": "candidate" if m.role == "user" else "interviewer", "text": m.text_content}
         for i, m in enumerate(
@@ -400,10 +415,10 @@ def save_transcript(session: AgentSession, s: State) -> None:
         )
     ]
     lat = sorted(s.latencies)
-    out = {
+    return {
         "session_id": s.session_id,
         "job_id": s.plan.job.id,
-        "duration_sec": round(time.monotonic() - s.started_at, 1),
+        "duration_sec": round(time.monotonic() - s.started_at, 1) if s.started_at else None,
         "turns": turns,
         "notes": s.notes,
         "latency": {
@@ -415,14 +430,45 @@ def save_transcript(session: AgentSession, s: State) -> None:
         "llm_cancelled": s.llm_cancelled,
         "usage": [u.model_dump() for u in session.usage.model_usage],
     }
+
+
+@logged
+async def post_results(s: State, out: dict | None) -> None:
+    """Send results to the backend, which stores them and starts scoring. Declined consent sends
+    only consented=false, so nothing is kept. The local JSON from save_transcript is the backup."""
+    # ponytail: direct HTTP call with one try; PLAN §4.4 routes this through RabbitMQ so a backend
+    # outage never loses an interview. Until then the out/<session>.json file is the fallback.
+    body = {"consented": False}
+    if out is not None:
+        usage = {k: out[k] for k in ("latency", "llm_calls", "llm_cancelled", "usage")}
+        body = {"consented": True, "turns": out["turns"], "notes": out["notes"], "usage": usage,
+                "duration_sec": out["duration_sec"]}
+    async with httpx.AsyncClient(timeout=15) as client:
+        r = await client.post(
+            f"{config.API_URL}/internal/sessions/{s.session_id}/complete",
+            json=body,
+            headers={"X-Service-Token": config.SERVICE_TOKEN},
+        )
+        r.raise_for_status()
+    jlog("Results sent to backend", function_name="post_results", output={"session_id": s.session_id, "consented": body["consented"]})
+
+
+@logged
+def save_transcript(session: AgentSession, s: State) -> dict | None:
+    """Writes out/<session_id>.json (kept as a backup now that results also go to the backend)."""
+    if not s.consented:
+        jlog("Not saving transcript: no consent", function_name="save_transcript")
+        return None  # declined consent: nothing is kept
+    out = build_results(session, s)
     config.OUT_DIR.mkdir(exist_ok=True)
     path = config.OUT_DIR / f"{s.session_id}.json"
     path.write_text(json.dumps(out, indent=2), encoding="utf-8")
     jlog(
         "Transcript saved",
         function_name="save_transcript",
-        output={"path": str(path), "turns": len(turns), "notes": len(s.notes), "latency": out["latency"]},
+        output={"path": str(path), "turns": len(out["turns"]), "notes": len(s.notes), "latency": out["latency"]},
     )
+    return out
 
 
 @logged
@@ -439,8 +485,8 @@ server = AgentServer(setup_fnc=prewarm)
 @server.rtc_session(agent_name="interviewer")
 @logged
 async def entrypoint(ctx: JobContext) -> None:
-    # Phase 2: metadata carries session_id and the plan comes from the internal API.
-    plan = Plan.model_validate_json(config.PLAN_PATH.read_text(encoding="utf-8"))
+    # The backend's token dispatches us with the session id as metadata; we fetch that session's plan.
+    plan = await load_plan(ctx.job.metadata)
     s = State(plan=plan, session_id=ctx.job.metadata or ctx.room.name)
     session = build_session(ctx.proc, keyterms=plan.plan.allowed_tech_stack[:50])
     agent = InterviewerAgent(s)
@@ -520,7 +566,12 @@ async def entrypoint(ctx: JobContext) -> None:
     async def _on_shutdown() -> None:
         if s.timer:
             s.timer.cancel()
-        save_transcript(session, s)
+        out = save_transcript(session, s)
+        if is_session_id(s.session_id):  # console runs have no backend session to report to
+            try:
+                await post_results(s, out)
+            except Exception:
+                pass  # @logged already logged it; the local JSON (if consented) is the backup
 
     ctx.add_shutdown_callback(_on_shutdown)
 

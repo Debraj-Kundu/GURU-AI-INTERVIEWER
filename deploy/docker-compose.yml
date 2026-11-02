@@ -1,0 +1,38 @@
+# Local dev infrastructure (PLAN §4.1 subset). The API, agent, and web run on the host for now.
+# Start: docker compose -f deploy/docker-compose.yml up -d
+# Qdrant stays on Qdrant Cloud and LiveKit on LiveKit Cloud.
+services:
+  postgres:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: guru
+      POSTGRES_PASSWORD: guru
+      POSTGRES_DB: guru
+    ports: ["5432:5432"]
+    volumes: [pgdata:/var/lib/postgresql]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U guru"]
+      interval: 5s
+      retries: 10
+    restart: unless-stopped
+
+  # S3-compatible object store for uploads; swap for AWS S3 by changing S3_ENDPOINT and keys.
+  minio:
+    image: minio/minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: guru
+      MINIO_ROOT_PASSWORD: guru-secret
+      # Browsers PUT uploads straight to MinIO via presigned URLs, so allow the web origin.
+      MINIO_API_CORS_ALLOW_ORIGIN: "http://localhost:3000"
+    ports: ["9000:9000", "9001:9001"]  # 9001 = MinIO console
+    volumes: [miniodata:/data]
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  miniodata:
