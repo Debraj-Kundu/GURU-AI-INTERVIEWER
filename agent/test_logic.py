@@ -61,6 +61,39 @@ def test_follow_up_limit_and_time_up_force_advance():
     assert "call advance_to_next_question now" in interviewer_instructions(s)
 
 
+def test_silence_checks_in_then_ends():
+    import asyncio
+
+    from guru.interviewer import SILENCE_GOODBYE, STILL_THERE, on_silence
+
+    class Done:
+        def __await__(self):
+            return iter(())
+
+    class FakeSession:
+        def __init__(self):
+            self.said, self.resets, self.closed = [], 0, False
+
+        def say(self, text, **_):
+            self.said.append(text)
+            return Done()
+
+        def reset_away_timer(self):
+            self.resets += 1
+
+        def shutdown(self):
+            self.closed = True
+
+    plan = Plan(job=JOB, plan=InterviewPlan(questions=[q("Q1", 120)], allowed_tech_stack=[]))
+    s, session = State(plan=plan, session_id="t"), FakeSession()
+    for _ in range(config.SILENCE_PROMPTS):
+        asyncio.run(on_silence(session, s))  # type: ignore[arg-type]
+    assert session.said == [STILL_THERE] * config.SILENCE_PROMPTS and not session.closed
+    assert session.resets == config.SILENCE_PROMPTS  # each check-in re-arms the timer
+    asyncio.run(on_silence(session, s))  # type: ignore[arg-type]
+    assert session.said[-1] == SILENCE_GOODBYE and session.closed
+
+
 def test_static_prompt_prefix_is_stable():
     """Gemini implicit caching needs an identical prefix across turns (§3.4)."""
     plan = Plan(job=JOB, plan=InterviewPlan(questions=[q("Q1", 120), q("Q2", 120)], allowed_tech_stack=["Python"]))
