@@ -25,15 +25,18 @@ from livekit.agents import (
     metrics,
     room_io,
 )
+from livekit.agents.llm import ToolError
 from livekit.plugins import deepgram, elevenlabs, google, openai, silero
 
 from . import config, kb, prompts
 from .jsonlog import MAX_VALUE_CHARS, add_file_sink, jlog, logged
 from .models import ObserverNote, Plan
-from .llm import generate_json
+from .llm import generate_json, openrouter
 
 GOODBYE = "We've reached the end of our time. Thank you for speaking with me today. Goodbye!"
 DECLINED = "No problem at all. Thank you for your time, and goodbye!"
+STILL_THERE = "Are you still there?"
+SILENCE_GOODBYE = "Seems like there's a technical issue, try again later."
 NO_ANSWER = {"status": "NO_ANSWER", "chunks": [], "source_urls": []}
 
 _background: set[asyncio.Task] = set()
@@ -63,6 +66,7 @@ class State:
     latencies: list[float] = field(default_factory=list, repr=False)  # voice-to-voice, seconds
     llm_calls: int = field(default=0, repr=False)
     llm_cancelled: int = field(default=0, repr=False)  # preemptive generations thrown away (§3.5.1)
+    silence_prompts: int = 0  # "Are you still there?" asked since the candidate last said something
     timer: asyncio.Task | None = field(default=None, repr=False)
 
     @property
@@ -153,7 +157,12 @@ class InterviewerAgent(Agent):
     @logged
     async def on_enter(self) -> None:
         s = self.s
-        s.consented = await ConsentTask(s)
+        try:
+            s.consented = await ConsentTask(s)
+        except ToolError:
+            # LiveKit cancels the task when the session ends mid-consent (silence timeout, tab closed).
+            jlog("Session ended before consent", class_name="InterviewerAgent", function_name="on_enter")
+            return
         jlog("Consent task finished", class_name="InterviewerAgent", function_name="on_enter", output={"consented": s.consented})
         if not s.consented:
             jlog("Ending session: consent declined", class_name="InterviewerAgent", function_name="on_enter")
@@ -188,7 +197,9 @@ class InterviewerAgent(Agent):
                 function_name="advance_to_next_question",
                 output={"from_question": s.idx + 1, "time_up": s.time_up},
             )
-            return ClosingAgent(s), "Moving to the closing part of the interview."
+            # Bare agent, no message: a message makes LiveKit generate a reply here AND in
+            # ClosingAgent.on_enter, so the candidate heard two closings.
+            return ClosingAgent(s)
         s.idx += 1
         s.answers, s.note = [], ""
         s.question_started_at = time.monotonic()
@@ -212,6 +223,18 @@ class InterviewerAgent(Agent):
             question: The candidate's question about the company, rephrased as a standalone question.
         """
         return await lookup_tool(self.s, question)
+
+    @function_tool
+    @logged
+    async def candidate_wants_to_end(self):
+        """The candidate asked to stop or end the interview before all questions are done."""
+        jlog(
+            "Candidate ended early, handing off to ClosingAgent",
+            class_name="InterviewerAgent",
+            function_name="candidate_wants_to_end",
+            output={"at_question": self.s.idx + 1, "of": len(self.s.plan.plan.questions)},
+        )
+        return ClosingAgent(self.s)  # bare handoff: only ClosingAgent.on_enter speaks
 
 
 class ClosingAgent(Agent):
@@ -267,7 +290,23 @@ async def run_timer(session: AgentSession, s: State) -> None:
 
 
 @logged
-async def observe(agent: InterviewerAgent, answer: str) -> None:
+async def on_silence(session: AgentSession, s: State) -> None:
+    """LiveKit marks the user "away" after SILENCE_SEC with nobody speaking. Check in up to
+    SILENCE_PROMPTS times, then end the interview."""
+    if s.silence_prompts >= config.SILENCE_PROMPTS:
+        jlog("Still silent after check-ins: ending interview", function_name="on_silence", output={"prompts": s.silence_prompts})
+        await session.say(SILENCE_GOODBYE, allow_interruptions=False)
+        session.shutdown()
+        return
+    s.silence_prompts += 1
+    jlog("Silence check-in", function_name="on_silence", output={"attempt": s.silence_prompts, "of": config.SILENCE_PROMPTS})
+    # "away" fires once per silence; resetting re-arms the countdown, which restarts after we speak.
+    session.reset_away_timer()
+    session.say(STILL_THERE)
+
+
+@logged
+async def observe(session: AgentSession, agent: InterviewerAgent, answer: str) -> None:
     """Silent Observer (§1): grades the answer off the hot path; the note shapes the NEXT reply."""
     s = agent.s
     idx = s.idx
@@ -282,7 +321,8 @@ async def observe(agent: InterviewerAgent, answer: str) -> None:
         return
     jlog("Observer note", function_name="observe", output={"question": idx + 1, **note.model_dump()})
     s.notes.append({"question_idx": idx, "note": note.model_dump()})
-    if s.idx == idx and agent.session.current_agent is agent:  # still on the same question
+    # The session we were given, not agent.session: that raises once a handoff has deactivated the agent.
+    if s.idx == idx and session.current_agent is agent:  # still on the same question
         s.note = note.model_dump_json(exclude={"coverage"})
         await agent.refresh()
 
@@ -297,7 +337,10 @@ def build_llm() -> llm.LLM:
             api_key=config.OPENROUTER_API_KEY,
             base_url="https://openrouter.ai/api/v1",
             extra_headers={"X-Title": "Guru"},
-            extra_body={"provider": {"data_collection": "deny"}},
+            # Explicit cache mode with no breakpoints = no caching. The instructions change almost
+            # every turn, so implicit caching paid 1.25x cache writes on ~10 turns for 2 reads.
+            # Re-enable if the per-turn state moves out of the instructions (stable prefix).
+            extra_body={"provider": {"data_collection": "deny"}, "prompt_cache_options": {"mode": "explicit"}},
             # Reasoning was most of the output tokens, and output tokens drive latency (OpenAI latency guide).
             reasoning_effort=config.INTERVIEWER_THINKING,  # type: ignore[arg-type]  # validated by the API
             max_completion_tokens=config.VOICE_MAX_TOKENS,
@@ -340,7 +383,7 @@ def build_session(proc: JobProcess, keyterms: list[str]) -> AgentSession:
                 "max_retries": config.PREEMPT_MAX_RETRIES,
             },
         ),
-        user_away_timeout=7.0,
+        user_away_timeout=config.SILENCE_SEC,  # drives on_silence via the "away" user state
     )
 
 
@@ -387,6 +430,7 @@ def prewarm(proc: JobProcess) -> None:
     proc.userdata["vad"] = silero.VAD.load()
     proc.userdata["llm"] = build_llm()  # Gemini client setup blocks ~3 s; keep it off the join path
     kb.bm25()  # load the BM25 model before the first candidate question
+    openrouter()  # building its SSL context blocked the loop ~200 ms on the first Observer call
 
 
 server = AgentServer(setup_fnc=prewarm)
@@ -407,6 +451,8 @@ async def entrypoint(ctx: JobContext) -> None:
         nonlocal user_stopped_at
         if ev.old_state == "speaking" and ev.new_state == "listening":
             user_stopped_at = time.monotonic()
+        if ev.new_state == "away":
+            spawn(on_silence(session, s))
 
     @session.on("agent_state_changed")
     def _agent_state(ev):
@@ -452,13 +498,15 @@ async def entrypoint(ctx: JobContext) -> None:
                 function_name="conversation_item_added",
                 output={"role": role, "question": s.idx + 1, "text": item.text_content},
             )
+        if role == "user":
+            s.silence_prompts = 0  # any real input (voice or text) restarts the check-in count
         if role != "user" or not s.consented:
             return
         if session.current_agent is not agent:
             return  # consent/closing turns are not graded
         s.answers.append(item.text_content or "")
         spawn(agent.refresh())  # follow-up count for the next reply
-        spawn(observe(agent, "\n".join(s.answers)))
+        spawn(observe(session, agent, "\n".join(s.answers)))
 
     @session.on("close")
     def _closed(ev):
