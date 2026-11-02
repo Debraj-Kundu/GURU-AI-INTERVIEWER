@@ -21,6 +21,22 @@ from .models import Job, ScopeLabel
 
 CHUNK_CHARS = 2000  # ~512 tokens (Azure AI Search starting point)
 OVERLAP_PARAS = 1  # carry the last paragraph into the next chunk (~15-25% overlap)
+EMBED_BATCH = 64  # texts per embedding request
+
+
+def _split_long(p: str, limit: int) -> list[str]:
+    """Split a paragraph longer than `limit` on line and sentence ends (PDF pages often have no
+    blank lines), packing the pieces back up to `limit`. A piece with no break gets hard-cut."""
+    if len(p) <= limit:
+        return [p]
+    out, buf = [], ""
+    for piece in re.split(r"(?<=[.!?])\s+|\n", p):
+        for part in (piece[i : i + limit] for i in range(0, len(piece), limit)):
+            if buf and len(buf) + 1 + len(part) > limit:
+                out.append(buf)
+                buf = ""
+            buf = f"{buf} {part}" if buf else part
+    return out + [buf] if buf else out
 
 
 def chunk(text: str, title: str) -> list[str]:
@@ -31,11 +47,10 @@ def chunk(text: str, title: str) -> list[str]:
         lines = section.strip().splitlines()
         heading = lines[0].lstrip("# ").strip() if lines and lines[0].startswith("#") else ""
         body = "\n".join(lines[1:] if heading else lines)
-        paras = [p.strip() for p in re.split(r"\n\s*\n", body) if p.strip()]
         prefix = f"{title} > {heading}\n" if heading else f"{title}\n"
+        room = CHUNK_CHARS - len(prefix)
+        paras = [s for p in re.split(r"\n\s*\n", body) if p.strip() for s in _split_long(p.strip(), room)]
         buf: list[str] = []
-        # ponytail: a single paragraph longer than CHUNK_CHARS stays whole; Phase 2 adds a
-        # recursive sentence-level split for long PDF/DOCX paragraphs.
         for p in paras:
             if buf and len(prefix) + sum(map(len, buf)) + len(p) > CHUNK_CHARS:
                 chunks.append(prefix + "\n\n".join(buf))
@@ -60,6 +75,8 @@ def qdrant() -> AsyncQdrantClient:
 async def ensure_collection() -> None:
     q = qdrant()
     if await q.collection_exists(config.QDRANT_COLLECTION):
+        # Added after the first collections were made; creating an existing index is a no-op.
+        await q.create_payload_index(config.QDRANT_COLLECTION, "source_id", models.PayloadSchemaType.KEYWORD)
         return
     await q.create_collection(
         config.QDRANT_COLLECTION,
@@ -73,20 +90,40 @@ async def ensure_collection() -> None:
         models.KeywordIndexParams(type=models.KeywordIndexType.KEYWORD, is_tenant=True),
     )
     await q.create_payload_index(config.QDRANT_COLLECTION, "job_id", models.PayloadSchemaType.KEYWORD)
+    await q.create_payload_index(config.QDRANT_COLLECTION, "source_id", models.PayloadSchemaType.KEYWORD)
 
 
-async def upsert(job: Job, source: str, chunks: list[str]) -> None:
-    dense = await llm.embed(chunks)
+async def upsert(job: Job, source: str, chunks: list[str], source_id: str = "") -> None:
+    """`source` is what answers cite (file name or URL); `source_id` (backend uploads) keys deletes."""
+    dense: list[list[float]] = []
+    for i in range(0, len(chunks), EMBED_BATCH):  # a 20-page PDF can be 100+ chunks
+        dense += await llm.embed(chunks[i : i + EMBED_BATCH])
     sparse = list(bm25().embed(chunks))
+    key = source_id or source
     points = [
         models.PointStruct(
-            id=str(uuid.uuid5(uuid.NAMESPACE_URL, f"{job.id}/{source}/{i}")),  # idempotent re-seed
+            id=str(uuid.uuid5(uuid.NAMESPACE_URL, f"{job.id}/{key}/{i}")),  # idempotent re-seed
             vector={"dense": d, "bm25": models.SparseVector(indices=s.indices.tolist(), values=s.values.tolist())},
-            payload={"org_id": job.org_id, "job_id": job.id, "source": source, "text": c},
+            payload={"org_id": job.org_id, "job_id": job.id, "source": source, "source_id": key, "text": c},
         )
         for i, (c, d, s) in enumerate(zip(chunks, dense, sparse))
     ]
     await qdrant().upsert(config.QDRANT_COLLECTION, points)
+
+
+async def delete_source(job: Job, source_id: str) -> None:
+    """Remove every chunk of one source (re-ingest or delete from the UI)."""
+    await qdrant().delete(
+        config.QDRANT_COLLECTION,
+        points_selector=models.FilterSelector(
+            filter=models.Filter(
+                must=[
+                    models.FieldCondition(key="job_id", match=models.MatchValue(value=job.id)),
+                    models.FieldCondition(key="source_id", match=models.MatchValue(value=source_id)),
+                ]
+            )
+        ),
+    )
 
 
 async def search(job: Job, question: str) -> tuple[float, list[dict]]:

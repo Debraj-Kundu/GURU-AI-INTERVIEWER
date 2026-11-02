@@ -1,0 +1,24 @@
+[project]
+name = "guru-backend"
+version = "0.1.0"
+description = "Guru API: jobs, KB ingestion, plans, interview sessions, scoring"
+requires-python = ">=3.12"
+dependencies = [
+    "guru-agent",
+    "fastapi[standard]",
+    "sqlalchemy[asyncio]",
+    "asyncpg",
+    "alembic",
+    "boto3",
+    "livekit-api",
+    "pypdf",
+    "python-docx",
+    "trafilatura",
+    "httpx",
+]
+
+[tool.uv.sources]
+guru-agent = { path = "../agent", editable = true }
+
+[dependency-groups]
+dev = ["pytest"]

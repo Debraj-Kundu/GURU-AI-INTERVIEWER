@@ -45,6 +45,14 @@ def test_chunk_respects_size_and_keeps_context():
     assert len(set(chunks)) == len(chunks)  # overlap must not produce duplicate chunks
 
 
+def test_long_paragraph_is_split():
+    """PDF pages often arrive as one huge paragraph; it must still fit CHUNK_CHARS."""
+    page = " ".join(f"Sentence number {i} about the company." for i in range(300))  # ~11k chars
+    chunks = chunk(page + "\n" + "x" * 5000, "pdf")  # plus one unbreakable run
+    assert all(len(c) <= CHUNK_CHARS for c in chunks)
+    assert "Sentence number 299" in "".join(chunks)
+
+
 def test_fixture_kb_chunks():
     for p in Path("fixtures/kb").glob("*.md"):
         assert chunk(p.read_text(encoding="utf-8"), p.stem)
