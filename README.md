@@ -4,7 +4,7 @@ AI voice interviewer. See [PLAN.md](PLAN.md) for the architecture.
 
 | Folder | What | Run |
 |---|---|---|
-| `deploy/` | Postgres + MinIO (S3) for local dev | `docker compose -f deploy/docker-compose.yml up -d` |
+| `deploy/` | Postgres + Floci (S3 emulator) for local dev | `docker compose -f deploy/docker-compose.yml up -d` |
 | `backend/` | FastAPI: jobs, KB upload + ingestion, plans, interview links, scoring | see below |
 | `agent/` | LiveKit voice interviewer worker | `uv run python -m guru.interviewer dev` |
 | `web/` | Next.js recruiter dashboard + candidate interview page | `npm run dev` |
@@ -17,13 +17,13 @@ AI voice interviewer. See [PLAN.md](PLAN.md) for the architecture.
    ```
 2. Secrets: `agent/.env` holds LiveKit, OpenRouter, Gemini, Qdrant, and `GURU_SERVICE_TOKEN`
    (see `agent/.env.example`). The backend reads them from there too.
-3. Backend (http://localhost:8000/docs):
+3. Backend (http://localhost:8080/docs):
    ```bash
    cd backend
    cp .env.example .env
    uv sync
    uv run alembic upgrade head
-   uv run fastapi dev app/main.py
+   uv run fastapi dev app/main.py --port 8080
    ```
 4. Agent (separate terminal):
    ```bash

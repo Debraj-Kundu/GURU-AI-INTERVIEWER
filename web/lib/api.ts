@@ -1,7 +1,7 @@
 // Typed client for the Guru FastAPI backend (backend/app). All calls go from the browser; the API
 // allows this origin via CORS. Shapes mirror backend/app/jobs.py and sessions.py.
 
-export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
+export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080';
 
 export type BankQuestion = {
   text: string;

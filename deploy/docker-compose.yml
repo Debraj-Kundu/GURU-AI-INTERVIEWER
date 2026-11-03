@@ -16,23 +16,21 @@ services:
       retries: 10
     restart: unless-stopped
 
-  # S3-compatible object store for uploads; swap for AWS S3 by changing S3_ENDPOINT and keys.
-  minio:
-    image: minio/minio
-    command: server /data --console-address ":9001"
+  # Floci: local AWS emulator (https://floci.io), only S3 is used. Swap for AWS S3 by changing
+  # S3_ENDPOINT and keys. Credentials aren't validated by default; the backend uses test/test.
+  # ponytail: :latest because floci documents no pinned tags; pin a digest once one is known-good.
+  floci:
+    image: floci/floci:latest
     environment:
-      MINIO_ROOT_USER: guru
-      MINIO_ROOT_PASSWORD: guru-secret
-      # Browsers PUT uploads straight to MinIO via presigned URLs, so allow the web origin.
-      MINIO_API_CORS_ALLOW_ORIGIN: "http://localhost:3000"
-    ports: ["9000:9000", "9001:9001"]  # 9001 = MinIO console
-    volumes: [miniodata:/data]
-    healthcheck:
-      test: ["CMD", "mc", "ready", "local"]
-      interval: 5s
-      retries: 10
+      # Default is memory-only; persist so uploads survive restarts.
+      FLOCI_STORAGE_MODE: persistent
+      FLOCI_STORAGE_PERSISTENT_PATH: /app/data
+      # Browsers PUT uploads straight to S3 via presigned URLs, so allow the web origin.
+      FLOCI_SECURITY_EXTRA_CORS_ALLOWED_ORIGINS: "http://localhost:3000"
+    ports: ["127.0.0.1:4566:4566"]
+    volumes: [flocidata:/app/data]
     restart: unless-stopped
 
 volumes:
   pgdata:
-  miniodata:
+  flocidata:
