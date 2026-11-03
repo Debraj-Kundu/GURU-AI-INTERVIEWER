@@ -8,6 +8,11 @@ Paste the prompt below into Claude Code from the repo root whenever the code cha
 | Offline CLI call sequence (kb seed, planner, scorer) | `api-offline.sequence.json` | `api-offline.html` | sequence |
 | Live interview call sequence (LiveKit worker) | `api-live.sequence.json` | `api-live.html` | sequence |
 | Agent architecture: handoffs and flow | `agents.workflow.json` | `agents.html` | workflow (v2) |
+| Whole system: web, API, agent, data stores, cloud services | `system.architecture.json` | `system.html` | architecture |
+
+Flow diagrams (Mermaid, edit directly) live in `docs/flows/`: `kb-ingestion.mmd`, `source-status.mmd`,
+`plan-generation.mmd`, `interview.mmd`, `session-status.mmd`. Update them when routes, statuses or
+background tasks in `backend/app/` or the agent's `/internal` calls change.
 
 The JSON specs are the source of truth. Never hand-edit the `.html` files; re-deliver them from the specs.
 `*.visual-check.*` files are generated browser evidence and are git-ignored.

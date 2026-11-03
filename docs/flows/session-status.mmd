@@ -1,0 +1,23 @@
+%% interview_sessions.status and score_status (backend/app/db.py SessionRow, sessions.py)
+stateDiagram-v2
+  state "status" as status {
+    [*] --> created : POST /jobs/{id}/sessions (needs ready, non-stale plan)
+    created --> active : POST /interviews/{id}/token
+    active --> completed : /internal/.../complete consented=true
+    active --> declined : /internal/.../complete consented=false
+    completed --> [*]
+    declined --> [*]
+  }
+  state "score_status" as score {
+    [*] --> none
+    none --> scoring : completed with at least one turn
+    scoring --> scored : score_session ok
+    scoring --> failed : scorer error
+    scored --> scoring : POST /sessions/{id}/score
+    failed --> scoring : POST /sessions/{id}/score
+  }
+  note right of status
+    Token requests for completed or declined
+    sessions get 409. Scoring left in "scoring"
+    is resumed when the API starts.
+  end note

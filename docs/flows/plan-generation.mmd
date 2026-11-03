@@ -1,0 +1,34 @@
+%% Interview plan generation. web plan-panel.tsx -> backend/app/jobs.py generate_plan/_plan -> agent/guru/planner.py make_plan
+sequenceDiagram
+  autonumber
+  actor R as Recruiter
+  participant W as Next.js (plan-panel.tsx)
+  participant A as FastAPI (jobs.py)
+  participant DB as Postgres
+  participant T as _plan() background task
+  participant L as OpenRouter (flex)
+
+  R->>W: Generate plan
+  W->>A: POST /jobs/{id}/plan
+  alt no questions or no criteria
+    A-->>W: 422
+  else already generating
+    A-->>W: 409 (single-flight per job)
+  else
+    A->>DB: PlanRow job_version=job.version, status=generating
+    A->>T: spawn(_plan(job_id, version))
+    A-->>W: 202 {status: generating}
+  end
+  T->>DB: excerpts of ready sources
+  T->>L: make_plan(job, summary)
+  alt ok
+    L-->>T: InterviewPlan
+    T->>DB: status=ready, plan (only if job_version still matches)
+  else error
+    T->>DB: status=failed, error
+  end
+  loop while generating (usePoll)
+    W->>A: GET /jobs/{id}/plan
+    A-->>W: {status, stale: job_version != job.version, plan}
+  end
+  Note over A,DB: PUT /jobs/{id} bumps job.version, so the saved plan becomes stale.<br/>Creating an interview needs a ready, non-stale plan (409 otherwise).
