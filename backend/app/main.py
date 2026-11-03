@@ -1,4 +1,4 @@
-"""Guru API. Run: uv run fastapi dev app/main.py   (http://localhost:8000/docs)"""
+"""Guru API. Run: uv run fastapi dev app/main.py --port 8080   (http://localhost:8080/docs)"""
 
 import logging
 from concurrent.futures import ProcessPoolExecutor

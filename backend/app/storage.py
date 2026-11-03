@@ -1,4 +1,4 @@
-"""S3 (MinIO locally). boto3 is blocking, so every call goes through asyncio.to_thread (PLAN §4.8)."""
+"""S3 via boto3, the official AWS SDK (Floci locally). boto3 is blocking, so every call goes through asyncio.to_thread (PLAN §4.8)."""
 
 import asyncio
 from functools import cache
@@ -18,7 +18,7 @@ def s3():
         region_name=settings.S3_REGION,
         aws_access_key_id=settings.S3_ACCESS_KEY,
         aws_secret_access_key=settings.S3_SECRET_KEY,
-        # path-style for MinIO; SigV4 is required for presigned PUTs
+        # path-style so http://localhost:4566/{bucket}/{key} works; SigV4 is required for presigned PUTs
         config=Config(signature_version="s3v4", s3={"addressing_style": "path"}),
     )
 
@@ -29,6 +29,16 @@ async def ensure_bucket() -> None:
             s3().head_bucket(Bucket=settings.S3_BUCKET)
         except ClientError:
             s3().create_bucket(Bucket=settings.S3_BUCKET)
+        # Browser uploads need bucket CORS on real S3; Floci also allows the origin via its env var.
+        s3().put_bucket_cors(
+            Bucket=settings.S3_BUCKET,
+            CORSConfiguration={"CORSRules": [{
+                "AllowedOrigins": [settings.WEB_ORIGIN],
+                "AllowedMethods": ["PUT"],
+                "AllowedHeaders": ["*"],
+                "MaxAgeSeconds": 3600,
+            }]},
+        )
 
     await asyncio.to_thread(run)
 
