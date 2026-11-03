@@ -2,7 +2,7 @@
 stateDiagram-v2
   state "status" as status {
     [*] --> created : POST /jobs/{id}/sessions (needs ready, non-stale plan)
-    created --> active : POST /interviews/{id}/token
+    created --> active : agent POST /internal/.../start
     active --> completed : /internal/.../complete consented=true
     active --> declined : /internal/.../complete consented=false
     completed --> [*]

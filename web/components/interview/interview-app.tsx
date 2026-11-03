@@ -1,18 +1,15 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTheme } from 'next-themes';
-import { TokenSource } from 'livekit-client';
-import { useSession, useSessionContext } from '@livekit/components-react';
-import { WarningIcon } from '@phosphor-icons/react';
+import { DisconnectReason, RoomEvent, TokenSource } from 'livekit-client';
+import { useAgent, useSession, useSessionContext } from '@livekit/components-react';
 import { AgentSessionProvider } from '@/components/agents-ui/agent-session-provider';
 import { AgentSessionView_01 } from '@/components/agents-ui/blocks/agent-session-view-01';
 import { StartAudioButton } from '@/components/agents-ui/start-audio-button';
 import { MicCheck } from '@/components/interview/mic-check';
 import { Button } from '@/components/ui/button';
-import { Toaster } from '@/components/ui/sonner';
-import { useAgentErrors } from '@/hooks/useAgentErrors';
-import { type InterviewInfo, api } from '@/lib/api';
+import { ApiError, type InterviewInfo, api } from '@/lib/api';
 
 const AGENT_NAME = 'interviewer'; // matches the agent worker and backend dispatch
 
@@ -35,10 +32,12 @@ export function InterviewApp({ id }: { id: string }) {
   }, [id]);
 
   // The token comes from our backend (never a dev token server); it carries the agent dispatch.
+  const [startedAt, setStartedAt] = useState<string | null>(null);
   const tokenSource = useMemo(
     () =>
       TokenSource.custom(async () => {
         const t = await api.interviewToken(id);
+        setStartedAt(t.started_at);
         return { serverUrl: t.server_url, participantToken: t.participant_token };
       }),
     [id]
@@ -50,41 +49,80 @@ export function InterviewApp({ id }: { id: string }) {
       <main className="grid min-h-svh place-items-center p-4">
         {error && <Message title="Can’t open this interview" body={error} />}
         {!error && !info && <p className="text-muted-foreground text-sm">Loading…</p>}
-        {info && <Flow info={info} />}
+        {info && <Flow info={info} startedAt={startedAt} />}
       </main>
       <StartAudioButton label="Start audio" />
-      <Toaster icons={{ warning: <WarningIcon weight="bold" /> }} position="top-center" />
     </AgentSessionProvider>
   );
 }
 
-function Message({ title, body }: { title: string; body: string }) {
+function Message({
+  title,
+  body,
+  children,
+}: {
+  title: string;
+  body: string;
+  children?: React.ReactNode;
+}) {
   return (
     <section className="flex max-w-md flex-col items-center gap-2 text-center">
       <h1 className="text-xl font-semibold">{title}</h1>
       <p className="text-muted-foreground">{body}</p>
+      {children}
     </section>
   );
 }
 
-function Flow({ info }: { info: InterviewInfo }) {
-  const { isConnected, start } = useSessionContext();
+/** done: the agent finished (it deletes the room). no-agent: no interviewer joined in time.
+ *  dropped: the candidate's connection ended; they can rejoin while the agent waits (2 min). */
+type Outcome = 'done' | 'no-agent' | 'dropped' | null;
+
+function Flow({ info, startedAt }: { info: InterviewInfo; startedAt: string | null }) {
+  const { isConnected, start, end, room } = useSessionContext();
+  const agent = useAgent();
   const { resolvedTheme } = useTheme();
   const [checked, setChecked] = useState<boolean[]>(CONSENTS.map(() => false));
   const [micOk, setMicOk] = useState(false);
   const [starting, setStarting] = useState(false);
   const [startError, setStartError] = useState('');
-  const [ended, setEnded] = useState(info.status === 'completed' || info.status === 'declined');
-  const wasConnected = useRef(false);
-  useAgentErrors();
+  const [outcome, setOutcome] = useState<Outcome>(
+    info.status === 'completed' || info.status === 'declined' ? 'done' : null
+  );
 
-  // The agent ends the session (goodbye, time cap, silence, declined consent) by closing the room.
+  // Why the room closed decides what the candidate sees. The first reason wins.
   useEffect(() => {
-    if (isConnected) wasConnected.current = true;
-    else if (wasConnected.current) setEnded(true);
-  }, [isConnected]);
+    const onDisconnected = (reason?: DisconnectReason) =>
+      setOutcome((o) => o ?? (reason === DisconnectReason.ROOM_DELETED ? 'done' : 'dropped'));
+    room.on(RoomEvent.Disconnected, onDisconnected);
+    return () => {
+      room.off(RoomEvent.Disconnected, onDisconnected);
+    };
+  }, [room]);
 
-  if (ended)
+  // No interviewer joined in time (e.g. the agent server is down). The backend still counts
+  // this as not started, so the candidate can try again.
+  useEffect(() => {
+    if (isConnected && agent.state === 'failed') {
+      setOutcome('no-agent');
+      end();
+    }
+  }, [isConnected, agent.state, end]);
+
+  const join = async () => {
+    setStarting(true);
+    setStartError('');
+    try {
+      await start();
+      setOutcome(null);
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 409) setOutcome('done');
+      else setStartError((e as Error).message || 'Couldn’t start the interview.');
+    }
+    setStarting(false);
+  };
+
+  if (outcome === 'done')
     return (
       <Message
         title="Thank you"
@@ -92,10 +130,34 @@ function Flow({ info }: { info: InterviewInfo }) {
       />
     );
 
+  if (outcome)
+    return (
+      <Message
+        {...(outcome === 'no-agent'
+          ? {
+              title: 'We couldn’t start your interview',
+              body: 'The interviewer isn’t available right now. Your interview hasn’t started, so nothing is lost. Please try again in a few minutes.',
+            }
+          : {
+              title: 'You’ve been disconnected',
+              body: 'Rejoin within 2 minutes to continue where you left off. After that, the interview ends and can’t be restarted.',
+            })}
+      >
+        {startError && (
+          <p role="alert" className="text-destructive text-sm">
+            {startError}
+          </p>
+        )}
+        <Button className="mt-2" disabled={starting} onClick={join}>
+          {starting ? 'Connecting…' : outcome === 'no-agent' ? 'Try again' : 'Rejoin interview'}
+        </Button>
+      </Message>
+    );
+
   if (isConnected)
     return (
       <>
-        <Countdown seconds={info.max_duration_sec} />
+        <Countdown seconds={info.max_duration_sec} startedAt={startedAt} />
         <AgentSessionView_01
           preConnectMessage="Connecting you to the interviewer…"
           supportsChatInput={false}
@@ -143,20 +205,7 @@ function Flow({ info }: { info: InterviewInfo }) {
           {startError}
         </p>
       )}
-      <Button
-        size="lg"
-        disabled={!ready || starting}
-        onClick={async () => {
-          setStarting(true);
-          setStartError('');
-          try {
-            await start();
-          } catch (e) {
-            setStartError((e as Error).message || 'Couldn’t start the interview.');
-            setStarting(false);
-          }
-        }}
-      >
+      <Button size="lg" disabled={!ready || starting} onClick={join}>
         {starting ? 'Connecting…' : 'Start interview'}
       </Button>
       <p className="text-muted-foreground text-xs">
@@ -167,17 +216,17 @@ function Flow({ info }: { info: InterviewInfo }) {
   );
 }
 
-/** Time left before the interview's hard cap (the agent enforces it; this is just a display). */
-function Countdown({ seconds }: { seconds: number }) {
+/** Time left before the interview's hard cap (the agent enforces it; this is just a display).
+ *  On a rejoin the backend's started_at keeps the real time left. */
+function Countdown({ seconds, startedAt }: { seconds: number; startedAt: string | null }) {
   const [left, setLeft] = useState(seconds);
   useEffect(() => {
-    const startedAt = Date.now();
-    const t = setInterval(
-      () => setLeft(Math.max(0, seconds - Math.floor((Date.now() - startedAt) / 1000))),
-      1000
-    );
+    const from = startedAt ? Date.parse(startedAt) : Date.now();
+    const tick = () => setLeft(Math.max(0, seconds - Math.floor((Date.now() - from) / 1000)));
+    tick();
+    const t = setInterval(tick, 1000);
     return () => clearInterval(t);
-  }, [seconds]);
+  }, [seconds, startedAt]);
   return (
     <div
       aria-label="Time remaining"

@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 
 import httpx
 from google.genai import types
+from livekit import rtc
 from livekit.agents import (
     Agent,
     AgentServer,
@@ -39,6 +40,7 @@ GOODBYE = "We've reached the end of our time. Thank you for speaking with me tod
 DECLINED = "No problem at all. Thank you for your time, and goodbye!"
 STILL_THERE = "Are you still there?"
 SILENCE_GOODBYE = "Seems like there's a technical issue, try again later."
+REJOINED = "The candidate just reconnected after losing the connection. Welcome them back in one short sentence, then repeat your last question."
 NO_ANSWER = {"status": "NO_ANSWER", "chunks": [], "source_urls": []}
 
 _background: set[asyncio.Task] = set()
@@ -395,14 +397,19 @@ def is_session_id(metadata: str | None) -> bool:
 
 
 @logged
-async def load_plan(metadata: str | None) -> Plan:
+async def load_plan(metadata: str | None, room: str) -> Plan | None:
+    """Claims the session's one attempt and returns its plan; None if it already started or ended."""
     if not is_session_id(metadata):
         jlog("No session in dispatch metadata: using the fixture plan", function_name="load_plan", output={"path": str(config.PLAN_PATH)})
         return Plan.model_validate_json(config.PLAN_PATH.read_text(encoding="utf-8"))
     async with httpx.AsyncClient(timeout=10) as client:
-        r = await client.get(
-            f"{config.API_URL}/internal/sessions/{metadata}/plan", headers={"X-Service-Token": config.SERVICE_TOKEN}
+        r = await client.post(
+            f"{config.API_URL}/internal/sessions/{metadata}/start",
+            json={"room": room},
+            headers={"X-Service-Token": config.SERVICE_TOKEN},
         )
+        if r.status_code == 409:
+            return None
         r.raise_for_status()
     return Plan.model_validate(r.json())
 
@@ -486,7 +493,14 @@ server = AgentServer(setup_fnc=prewarm)
 @logged
 async def entrypoint(ctx: JobContext) -> None:
     # The backend's token dispatches us with the session id as metadata; we fetch that session's plan.
-    plan = await load_plan(ctx.job.metadata)
+    plan = await load_plan(ctx.job.metadata, ctx.room.name)
+    if plan is None:
+        # One attempt per interview: it already started (or ended) in another room. Report nothing,
+        # so the real attempt's result stands; deleting the room tells the page it's over.
+        jlog("Interview already started or ended: leaving", function_name="entrypoint", output={"room": ctx.room.name})
+        await ctx.delete_room()
+        ctx.shutdown("interview already started")
+        return
     s = State(plan=plan, session_id=ctx.job.metadata or ctx.room.name)
     session = build_session(ctx.proc, keyterms=plan.plan.allowed_tech_stack[:50])
     agent = InterviewerAgent(s)
@@ -575,11 +589,43 @@ async def entrypoint(ctx: JobContext) -> None:
 
     ctx.add_shutdown_callback(_on_shutdown)
 
+    # A candidate who drops (network, closed tab, reload) can rejoin the same room for
+    # RECONNECT_GRACE_SEC; after that the interview ends and can't be retaken.
+    grace: asyncio.Task | None = None
+
+    async def _end_if_not_back() -> None:
+        await asyncio.sleep(config.RECONNECT_GRACE_SEC)
+        jlog("Candidate did not reconnect: ending the interview", function_name="entrypoint")
+        session.shutdown()
+
+    @ctx.room.on("participant_disconnected")
+    def _left(p: rtc.RemoteParticipant):
+        nonlocal grace
+        if ctx.room.remote_participants or grace:
+            return
+        jlog(
+            "Candidate disconnected: waiting for a rejoin",
+            function_name="entrypoint",
+            output={"reason": rtc.DisconnectReason.Name(p.disconnect_reason or rtc.DisconnectReason.UNKNOWN_REASON), "grace_sec": config.RECONNECT_GRACE_SEC},
+        )
+        grace = spawn(_end_if_not_back())
+
+    @ctx.room.on("participant_connected")
+    def _back(p: rtc.RemoteParticipant):
+        nonlocal grace
+        if not grace:
+            return
+        grace.cancel()
+        grace = None
+        jlog("Candidate reconnected", function_name="entrypoint")
+        session.generate_reply(instructions=REJOINED)
+
     await session.start(
         agent,
         room=ctx.room,
-        # Closing the tab ends the session (stops STT/LLM/TTS spend); room is deleted to free minutes.
-        room_options=room_io.RoomOptions(close_on_disconnect=True, delete_room_on_close=True),
+        # We end the session ourselves when the candidate doesn't come back (above); the room is
+        # deleted on close to free minutes and to tell the page the interview is over.
+        room_options=room_io.RoomOptions(close_on_disconnect=False, delete_room_on_close=True),
         record=False,  # no LiveKit Cloud recording before consent; Phase 2 starts Egress after consent
     )
     jlog(

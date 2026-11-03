@@ -2,6 +2,7 @@
 agent-only /internal endpoints (PLAN §4.4)."""
 
 import logging
+import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -109,6 +110,12 @@ async def interview_token(session_id: str, db: AsyncSession = Depends(get_db)):
     s = await _get_session(db, session_id)
     if s.status in ("completed", "declined"):
         raise HTTPException(409, "This interview has already ended.")
+    if s.status == "created":
+        # No interviewer has joined yet (e.g. none was running). A token only dispatches the agent
+        # when it creates the room, so each try gets a fresh room. Once the agent starts
+        # (/internal/.../start), the room is fixed and a rejoin lands back with the same agent.
+        s.room_name = f"interview-{s.id}-{secrets.token_hex(3)}"
+        await db.commit()
     token = (
         api.AccessToken(settings.LIVEKIT_API_KEY, settings.LIVEKIT_API_SECRET)
         .with_identity(f"candidate-{s.id[:8]}")
@@ -119,15 +126,17 @@ async def interview_token(session_id: str, db: AsyncSession = Depends(get_db)):
             can_publish_data=True, can_publish_sources=["microphone"],  # audio only
         ))
         .with_room_config(api.RoomConfiguration(
-            agents=[api.RoomAgentDispatch(agent_name=settings.AGENT_NAME, metadata=s.id)]
+            agents=[api.RoomAgentDispatch(agent_name=settings.AGENT_NAME, metadata=s.id)],
+            # LiveKit closes a room departure_timeout s after the candidate leaves (default 20; the
+            # agent doesn't keep it open). Outlast the agent's rejoin window; the agent deletes
+            # the room itself when the window ends.
+            departure_timeout=int(settings.guru_config.RECONNECT_GRACE_SEC) + 30,
         ))
         .to_jwt()
     )
-    if s.status == "created":
-        s.status, s.started_at = "active", datetime.now(timezone.utc)
-        await db.commit()
     # ponytail: the link itself is the credential (no invite expiry or single use yet, PLAN §4.4).
-    return {"server_url": settings.LIVEKIT_URL, "participant_token": token}
+    # started_at lets a rejoining page show the real time left.
+    return {"server_url": settings.LIVEKIT_URL, "participant_token": token, "started_at": s.started_at}
 
 
 # ---------- agent only ----------
@@ -137,9 +146,20 @@ def require_service(x_service_token: str = Header("")) -> None:
         raise HTTPException(401, "Bad service token")
 
 
-@internal.get("/sessions/{session_id}/plan", dependencies=[Depends(require_service)])
-async def agent_plan(session_id: str, db: AsyncSession = Depends(get_db)):
-    return (await _get_session(db, session_id)).plan
+class StartIn(BaseModel):
+    room: str
+
+
+@internal.post("/sessions/{session_id}/start", dependencies=[Depends(require_service)])
+async def agent_start(session_id: str, body: StartIn, db: AsyncSession = Depends(get_db)):
+    """The agent joined and is about to speak: the one attempt starts now. Returns the plan.
+    Any other agent (an older room, or a re-dispatch after the interview began) gets 409."""
+    s = await _get_session(db, session_id)
+    if s.status != "created" or body.room != s.room_name:
+        raise HTTPException(409, "This interview already started or ended.")
+    s.status, s.started_at = "active", datetime.now(timezone.utc)
+    await db.commit()
+    return s.plan
 
 
 class CompleteIn(BaseModel):

@@ -17,12 +17,20 @@ sequenceDiagram
   W->>A: GET /interviews/{id} (public fields only)
   C->>W: 3 consent boxes + mic check, Start
   W->>A: POST /interviews/{id}/token
-  A->>DB: status=active, started_at
-  A-->>W: {server_url, participant_token} (15 min, microphone only, dispatch agent "interviewer", metadata=session id)
+  A->>DB: status created: new room interview-{id}-{rand} (active: same room, for a rejoin)
+  A-->>W: {server_url, participant_token, started_at} (microphone only, dispatch "interviewer", departure_timeout 150 s)
   W->>LK: connect (useSession + TokenSource.custom)
+  alt no agent joins in time
+    W->>C: "We couldn't start your interview", Try again (status stays created)
+  end
   LK->>G: dispatch job (metadata = session id)
-  G->>A: GET /internal/sessions/{id}/plan (X-Service-Token)
+  G->>A: POST /internal/sessions/{id}/start {room} (X-Service-Token)
+  A->>DB: status=active, started_at (409 if already started or ended: agent deletes room, reports nothing)
   A-->>G: plan snapshot
+  opt candidate disconnects
+    W->>C: "You've been disconnected", Rejoin
+    G->>G: wait RECONNECT_GRACE_SEC (120 s): rejoin = welcome back + repeat question, else shutdown
+  end
   G->>C: ConsentTask (voice)
   alt consent declined, or session ends first
     G->>A: POST /internal/sessions/{id}/complete {consented: false}
