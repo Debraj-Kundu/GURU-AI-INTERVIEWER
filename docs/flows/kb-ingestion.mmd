@@ -1,0 +1,56 @@
+%% Knowledge base upload and ingestion. web/lib/api.ts (uploadFile, addUrl) -> backend/app/jobs.py -> backend/app/ingest.py
+sequenceDiagram
+  autonumber
+  actor R as Recruiter
+  participant W as Next.js (kb-panel.tsx)
+  participant A as FastAPI (jobs.py)
+  participant S3 as S3 (Floci)
+  participant I as ingest() background task
+  participant P as Process pool (parsers.parse)
+  participant Q as Qdrant (kb.py)
+
+  alt File (PDF, DOCX, TXT, MD, CSV)
+    R->>W: drop file
+    W->>A: POST /jobs/{id}/sources/upload {filename, content_type, size_bytes}
+    A->>A: limits (20 MB, 50 sources), SourceRow status=uploading
+    A-->>W: {source, upload_url, headers} (presign_put)
+    W->>S3: PUT upload_url (file bytes, browser to storage)
+    alt PUT failed
+      W->>A: DELETE /sources/{id}
+    else PUT ok
+      W->>A: POST /sources/{id}/uploaded
+      A->>S3: size_of(key)
+      alt larger than 20 MB
+        A->>S3: delete(key)
+        A-->>W: status=failed
+      else
+        A->>I: spawn(ingest(id)), status=queued
+      end
+    end
+  else Website link
+    R->>W: paste URL
+    W->>A: POST /jobs/{id}/sources/url {url}
+    A->>I: spawn(ingest(id)), status=queued
+  end
+
+  Note over I: Semaphore(2) limits concurrent ingests
+  I->>I: status=parsing
+  alt kind == url
+    I->>I: fetch_page(url): SSRF check per hop, robots.txt, 5 MB, 10 s
+  else file
+    I->>S3: get_bytes(key)
+  end
+  I->>I: sha256, same content already ready in this job?
+  alt duplicate
+    I->>I: status=duplicate
+  else new content
+    I->>P: parse(kind, data, name)
+    P-->>I: chunks, excerpt (or ParseError -> status=failed)
+    I->>I: status=embedding
+    I->>Q: delete_source(job, source_id)
+    I->>Q: upsert(job, name, chunks, source_id) (Gemini embeddings, batches of 64)
+    I->>I: status=ready, chunks, excerpt
+  end
+  loop every few seconds (usePoll)
+    W->>A: GET /jobs/{id}/sources
+  end

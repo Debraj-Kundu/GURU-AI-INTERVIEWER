@@ -1,0 +1,19 @@
+%% kb_sources.status (backend/app/db.py SourceRow). Set in jobs.py and ingest.py.
+stateDiagram-v2
+  [*] --> uploading : POST /jobs/{id}/sources/upload
+  [*] --> queued : POST /jobs/{id}/sources/url
+  uploading --> queued : POST /sources/{id}/uploaded, object found
+  uploading --> failed : object larger than 20 MB
+  queued --> parsing : ingest() starts
+  parsing --> duplicate : same sha256 already ready in job
+  parsing --> embedding : parse() returned chunks
+  parsing --> failed : ParseError or fetch error
+  embedding --> ready : kb.upsert done
+  embedding --> failed : Qdrant or embedding error
+  failed --> queued : POST /sources/{id}/retry
+  duplicate --> queued : POST /sources/{id}/retry
+  ready --> [*] : DELETE /sources/{id}, any state (S3 object + Qdrant points removed)
+  note right of queued
+    API restart: queued, parsing and embedding
+    are re-run by requeue_unfinished()
+  end note

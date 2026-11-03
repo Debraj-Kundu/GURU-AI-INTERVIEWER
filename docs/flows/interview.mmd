@@ -1,0 +1,45 @@
+%% Live interview end to end. web interview-app.tsx -> backend/app/sessions.py -> agent/guru/interviewer.py entrypoint
+sequenceDiagram
+  autonumber
+  actor R as Recruiter
+  actor C as Candidate
+  participant W as Next.js (/interview/[id])
+  participant A as FastAPI (sessions.py)
+  participant DB as Postgres
+  participant LK as LiveKit Cloud
+  participant G as Agent (guru.interviewer)
+  participant X as OpenRouter, Deepgram, ElevenLabs, Qdrant
+
+  R->>A: POST /jobs/{id}/sessions {candidate_name}
+  A->>DB: SessionRow status=created, plan snapshot, room interview-{id}
+  A-->>R: invite link /interview/{id}
+  C->>W: open link
+  W->>A: GET /interviews/{id} (public fields only)
+  C->>W: 3 consent boxes + mic check, Start
+  W->>A: POST /interviews/{id}/token
+  A->>DB: status=active, started_at
+  A-->>W: {server_url, participant_token} (15 min, microphone only, dispatch agent "interviewer", metadata=session id)
+  W->>LK: connect (useSession + TokenSource.custom)
+  LK->>G: dispatch job (metadata = session id)
+  G->>A: GET /internal/sessions/{id}/plan (X-Service-Token)
+  A-->>G: plan snapshot
+  G->>C: ConsentTask (voice)
+  alt consent declined, or session ends first
+    G->>A: POST /internal/sessions/{id}/complete {consented: false}
+    A->>DB: status=declined, nothing kept
+  else consent given
+    loop each planned question
+      C->>G: answer (Deepgram Flux STT)
+      G->>X: voice LLM reply, Observer note, lookup_tool (Qdrant)
+      G->>C: reply (ElevenLabs TTS)
+      opt 7 s silence
+        G->>C: "Are you still there?" (max 3, then goodbye + shutdown)
+      end
+    end
+    G->>G: ClosingAgent, timer or candidate_wants_to_end
+    G->>A: POST /internal/sessions/{id}/complete {turns, notes, usage, duration_sec}
+    A->>DB: status=completed, score_status=scoring
+    A->>A: spawn(score(id)): scorer.score_session via OpenRouter flex
+    A->>DB: score, score_status=scored (or failed)
+  end
+  R->>A: GET /sessions/{id} (session-review.tsx), optional POST /sessions/{id}/score

@@ -1,0 +1,350 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Guru system: web, API, agent",
+    "quality_profile": "showcase",
+    "viewBox": [
+      1300,
+      580
+    ],
+    "views": [
+      {
+        "id": "setup",
+        "label": "Recruiter setup",
+        "focus": [
+          "recruiter",
+          "web",
+          "api",
+          "postgres",
+          "llm"
+        ],
+        "note": "Jobs, questions, criteria and plan generation (planner via OpenRouter flex)."
+      },
+      {
+        "id": "ingest",
+        "label": "Knowledge base upload",
+        "focus": [
+          "web",
+          "s3",
+          "api",
+          "qdrant",
+          "llm"
+        ],
+        "note": "Presigned PUT to S3, then the API parses, embeds and upserts chunks to Qdrant."
+      },
+      {
+        "id": "interview",
+        "label": "Live interview",
+        "focus": [
+          "candidate",
+          "web",
+          "livekit",
+          "agent",
+          "speech",
+          "llm",
+          "qdrant"
+        ],
+        "note": "Audio-only room; the token dispatches the interviewer agent with the session id."
+      },
+      {
+        "id": "results",
+        "label": "Results and scoring",
+        "focus": [
+          "agent",
+          "api",
+          "postgres",
+          "llm"
+        ],
+        "note": "Agent posts the transcript to /internal; the API scores it in the background."
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "s3",
+      "type": "database",
+      "label": "S3 (Floci)",
+      "sublabel": "uploaded files",
+      "tag": "storage.py",
+      "pos": [
+        260,
+        40
+      ],
+      "size": [
+        170,
+        72
+      ]
+    },
+    {
+      "id": "recruiter",
+      "type": "external",
+      "label": "Recruiter",
+      "sublabel": "browser",
+      "pos": [
+        40,
+        190
+      ],
+      "size": [
+        150,
+        68
+      ]
+    },
+    {
+      "id": "web",
+      "type": "frontend",
+      "label": "Next.js web",
+      "sublabel": "/jobs · /interview/[id]",
+      "brand": "next-js",
+      "tag": "web/",
+      "pos": [
+        260,
+        320
+      ],
+      "size": [
+        170,
+        80
+      ]
+    },
+    {
+      "id": "candidate",
+      "type": "external",
+      "label": "Candidate",
+      "sublabel": "browser, mic only",
+      "pos": [
+        40,
+        450
+      ],
+      "size": [
+        150,
+        68
+      ]
+    },
+    {
+      "id": "api",
+      "type": "backend",
+      "label": "FastAPI",
+      "sublabel": "jobs · ingest · plans · scoring",
+      "brand": "fastapi",
+      "tag": "backend/app",
+      "pos": [
+        520,
+        190
+      ],
+      "size": [
+        190,
+        80
+      ]
+    },
+    {
+      "id": "postgres",
+      "type": "database",
+      "label": "PostgreSQL",
+      "sublabel": "jobs, sources, plans, sessions",
+      "brand": "postgresql",
+      "pos": [
+        520,
+        40
+      ],
+      "size": [
+        190,
+        72
+      ]
+    },
+    {
+      "id": "livekit",
+      "type": "cloud",
+      "label": "LiveKit Cloud",
+      "sublabel": "audio room",
+      "pos": [
+        520,
+        470
+      ],
+      "size": [
+        190,
+        72
+      ]
+    },
+    {
+      "id": "agent",
+      "type": "backend",
+      "label": "Interviewer agent",
+      "sublabel": "guru.interviewer worker",
+      "tag": "agent/guru",
+      "pos": [
+        760,
+        470
+      ],
+      "size": [
+        190,
+        72
+      ]
+    },
+    {
+      "id": "qdrant",
+      "type": "database",
+      "label": "Qdrant Cloud",
+      "sublabel": "KB chunks by job",
+      "pos": [
+        1080,
+        190
+      ],
+      "size": [
+        180,
+        72
+      ]
+    },
+    {
+      "id": "llm",
+      "type": "external",
+      "label": "LLMs",
+      "sublabel": "OpenRouter · Gemini",
+      "pos": [
+        1080,
+        330
+      ],
+      "size": [
+        180,
+        72
+      ]
+    },
+    {
+      "id": "speech",
+      "type": "external",
+      "label": "Speech",
+      "sublabel": "Deepgram Flux · ElevenLabs",
+      "pos": [
+        1080,
+        470
+      ],
+      "size": [
+        180,
+        72
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "recruiter-web",
+      "from": "recruiter",
+      "to": "web",
+      "label": "HTTPS"
+    },
+    {
+      "id": "candidate-web",
+      "from": "candidate",
+      "to": "web",
+      "label": "invite link"
+    },
+    {
+      "id": "web-api",
+      "from": "web",
+      "to": "api",
+      "label": "REST JSON",
+      "variant": "emphasis"
+    },
+    {
+      "id": "web-s3",
+      "from": "web",
+      "to": "s3",
+      "label": "presigned PUT"
+    },
+    {
+      "id": "web-livekit",
+      "from": "web",
+      "to": "livekit",
+      "label": "WebRTC audio",
+      "variant": "emphasis"
+    },
+    {
+      "id": "api-s3",
+      "from": "api",
+      "to": "s3",
+      "label": "boto3"
+    },
+    {
+      "id": "api-postgres",
+      "from": "api",
+      "to": "postgres",
+      "label": "SQL",
+      "fromSide": "top",
+      "toSide": "bottom"
+    },
+    {
+      "id": "api-qdrant",
+      "from": "api",
+      "to": "qdrant",
+      "label": "upsert chunks"
+    },
+    {
+      "id": "api-llm",
+      "from": "api",
+      "to": "llm",
+      "label": "plan, score, embed",
+      "variant": "dashed",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "livekit-agent",
+      "from": "livekit",
+      "to": "agent",
+      "label": "dispatch"
+    },
+    {
+      "id": "agent-api",
+      "from": "agent",
+      "to": "api",
+      "label": "/internal plan, results",
+      "variant": "security",
+      "fromSide": "top",
+      "toSide": "bottom"
+    },
+    {
+      "id": "agent-llm",
+      "from": "agent",
+      "to": "llm",
+      "label": "voice LLM",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "agent-speech",
+      "from": "agent",
+      "to": "speech",
+      "label": "STT, TTS",
+      "labelDy": 18
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Recruiter path",
+      "items": [
+        "Create job, questions, criteria",
+        "Upload KB files or links",
+        "Generate plan, create invite link",
+        "Review transcript and scores"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Candidate path",
+      "items": [
+        "Consent and mic check",
+        "Token: microphone only, dispatches agent",
+        "Agent loads plan by session id",
+        "lookup_tool reads Qdrant (edge not drawn)",
+        "Results posted back, scoring starts"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "In-process background work",
+      "items": [
+        "ingest, _plan, score run via spawn()",
+        "Unfinished work requeued on API start"
+      ]
+    }
+  ]
+}
