@@ -37,6 +37,7 @@ MAX_FOLLOW_UPS = 2
 KEEP_CHAT_ITEMS = 16  # rolling window kept when moving to the next question (§3.4)
 SILENCE_SEC = 7.0  # no speech from either side for this long -> "Are you still there?"
 SILENCE_PROMPTS = 3  # check-ins before ending the interview as a technical issue
+RECONNECT_GRACE_SEC = 120.0  # a dropped candidate may rejoin within this; then the interview ends for good
 
 # Turn taking (PLAN §3.5.1). Flux decides end-of-turn; eager threshold enables preemptive LLM.
 EOT_THRESHOLD = 0.8  # higher = more patient with thinking pauses

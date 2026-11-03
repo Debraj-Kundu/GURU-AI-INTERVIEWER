@@ -214,7 +214,7 @@ export const api = {
 
   interviewInfo: (id: string) => request<InterviewInfo>(`/interviews/${id}`),
   interviewToken: (id: string) =>
-    request<{ server_url: string; participant_token: string }>(
+    request<{ server_url: string; participant_token: string; started_at: string | null }>(
       `/interviews/${id}/token`,
       json('POST')
     ),
