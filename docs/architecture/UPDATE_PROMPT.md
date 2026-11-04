@@ -12,7 +12,14 @@ Paste the prompt below into Claude Code from the repo root whenever the code cha
 
 Flow diagrams (Mermaid, edit directly) live in `docs/flows/`: `kb-ingestion.mmd`, `source-status.mmd`,
 `plan-generation.mmd`, `interview.mmd`, `session-status.mmd`. Update them when routes, statuses or
-background tasks in `backend/app/` or the agent's `/internal` calls change.
+background tasks in `backend/app/` or the agent's `/internal` calls change. The Postgres schema is
+`docs/database.mmd` (from `backend/app/db.py`) and the agent state machine is `docs/agent/states.mmd`.
+
+The root `README.md` embeds copies of all these Mermaid files. GitHub can't run the Archify viewer,
+so the system and agent diagrams also have Mermaid versions for the README:
+`docs/architecture/system.mmd` and `agents.mmd`. When `system.architecture.json` or
+`agents.workflow.json` changes, update the matching `.mmd` too. After changing any `.mmd`, paste it
+into the matching README block.
 
 The JSON specs are the source of truth. Never hand-edit the `.html` files; re-deliver them from the specs.
 `*.visual-check.*` files are generated browser evidence and are git-ignored.

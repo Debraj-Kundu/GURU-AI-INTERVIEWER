@@ -1,0 +1,34 @@
+%% System architecture. Mermaid copy of system.architecture.json (interactive: system.html)
+flowchart LR
+  recruiter(["Recruiter"]) -->|HTTPS| web
+  candidate(["Candidate"]) -->|invite link| web
+
+  subgraph local["Runs locally"]
+    web["Next.js web<br/>/jobs, /interview/id"]
+    api["FastAPI<br/>jobs, ingest, plans, scoring"]
+    agent["Interviewer agent<br/>guru.interviewer worker"]
+    subgraph docker["docker compose"]
+      pg[("PostgreSQL")]
+      s3[("S3: Floci")]
+    end
+  end
+
+  subgraph cloud["Cloud services"]
+    lk["LiveKit Cloud<br/>audio room"]
+    qd[("Qdrant Cloud<br/>KB chunks")]
+    llm["LLMs<br/>OpenRouter, Gemini"]
+    speech["Speech<br/>Deepgram Flux, ElevenLabs"]
+  end
+
+  web -->|REST JSON| api
+  web -->|presigned PUT| s3
+  web <-->|WebRTC audio| lk
+  api -->|SQL| pg
+  api -->|boto3| s3
+  api -->|upsert chunks| qd
+  api -->|plan, score, embed| llm
+  lk -->|dispatch| agent
+  agent -->|"/internal: start, complete"| api
+  agent -->|voice LLM, Observer| llm
+  agent -->|lookup_tool| qd
+  agent -->|STT, TTS| speech

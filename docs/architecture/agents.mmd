@@ -1,0 +1,40 @@
+%% Agent architecture. Mermaid copy of agents.workflow.json (interactive: agents.html)
+flowchart LR
+  subgraph api["Backend API"]
+    start["POST /start<br/>claim session, plan"]
+    complete["POST /complete<br/>store, score_session"]
+  end
+
+  subgraph helpers["Helpers"]
+    observer["Observer<br/>one call per answer"]
+    lookup["kb.lookup<br/>scope LLM + Qdrant"]
+    timer["run_timer<br/>time_up, then cap"]
+  end
+
+  subgraph live["Voice session"]
+    consent["ConsentTask"] -->|consent_given| interviewer["InterviewerAgent<br/>per-question loop"]
+    interviewer -->|handoff| closing["ClosingAgent<br/>candidate Q and A"]
+    closing -->|end_interview| report["Report<br/>on shutdown"]
+  end
+
+  subgraph exits["Forced exits"]
+    used["Already used<br/>leave, no report"]
+    declined["Declined<br/>say DECLINED"]
+    gone["Candidate gone<br/>silence or no rejoin"]
+    cap["Hard cap<br/>say GOODBYE"]
+  end
+
+  start -->|plan| consent
+  report -->|results| complete
+  interviewer -.->|each answer| observer
+  interviewer -.->|company Q| lookup
+  closing -.->|company Q| lookup
+  interviewer -.->|starts at consent| timer
+  start -.->|409| used
+  consent -.->|consent_declined| declined
+  interviewer -.->|unresponsive| gone
+  timer -.->|cap reached| cap
+  declined & gone & cap -.->|shutdown| report
+
+  classDef exit stroke:#e11d48,stroke-width:2px
+  class used,declined,gone,cap exit

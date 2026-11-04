@@ -1,0 +1,65 @@
+%% Postgres schema (backend/app/db.py, migration backend/migrations/versions/0001_initial.py)
+erDiagram
+  jobs ||--o{ kb_sources : "knowledge base"
+  jobs ||--o| interview_plans : "latest plan"
+  jobs ||--o{ interview_sessions : "interview links"
+
+  jobs {
+    string id PK "job_..."
+    string org_id "indexed, org_default until auth"
+    string title
+    string company_name
+    text jd_text
+    int max_duration_sec "300 to 3600, default 600"
+    jsonb questions "question bank"
+    jsonb criteria "weights and 1-5 anchors"
+    int version "bumped on edit, makes plans stale"
+    timestamptz created_at
+    timestamptz updated_at
+  }
+
+  kb_sources {
+    string id PK "src_..."
+    string org_id
+    string job_id FK "cascade delete"
+    string kind "pdf, docx, txt, md, csv, url"
+    string name "file name or URL"
+    string s3_key "org/job/src/file, files only"
+    text url "links only"
+    int size_bytes
+    string sha256 "indexed, duplicate check"
+    string status "uploading to ready, failed, duplicate"
+    text error
+    int chunks "points in Qdrant"
+    text excerpt "feeds the planner"
+    timestamptz created_at
+  }
+
+  interview_plans {
+    string job_id PK, FK "one row per job"
+    int job_version "stale when not equal to jobs.version"
+    string status "generating, ready, failed"
+    jsonb plan "job snapshot + questions"
+    text error
+    timestamptz updated_at
+  }
+
+  interview_sessions {
+    string id PK "32 hex, in the invite link"
+    string org_id
+    string job_id FK "cascade delete"
+    string candidate_name
+    string room_name "new per try until the agent starts"
+    string status "created, active, completed, declined"
+    jsonb plan "snapshot at link creation"
+    jsonb transcript "turns"
+    jsonb notes "Observer notes"
+    jsonb usage "tokens, latency"
+    float duration_sec
+    string score_status "none, scoring, scored, failed"
+    jsonb score "per-criterion scores + evidence"
+    text score_error
+    timestamptz created_at
+    timestamptz started_at "set when the agent starts"
+    timestamptz ended_at
+  }

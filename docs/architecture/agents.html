@@ -5085,7 +5085,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
       </div>
     </div>
 
-    <script id="archify-guided-views-data" type="application/json">[{"id":"handoffs","label":"Agent handoffs","focus":["planner","consent","interviewer","closing","transcript","scorer"],"note":"Plan, consent, interview, closing, transcript, score."},{"id":"helpers","label":"Silent helpers","focus":["interviewer","closing","observer","lookup","kb","timer"],"note":"Observer, grounded company lookup, and the Python-owned clock."},{"id":"exits","label":"Exits","focus":["consent","declined","timer","hardcap","transcript"],"note":"Declined consent saves nothing; the hard cap forces goodbye."}]</script>
+    <script id="archify-guided-views-data" type="application/json">[{"id":"handoffs","label":"Agent handoffs","focus":["start","consent","interviewer","closing","transcript","scorer"],"note":"Claim the session, consent, interview, closing, report, score."},{"id":"helpers","label":"Silent helpers","focus":["interviewer","closing","observer","lookup","timer"],"note":"Observer, grounded company lookup, and the Python-owned clock."},{"id":"exits","label":"Exits","focus":["start","rejected","consent","declined","interviewer","gone","timer","hardcap","transcript"],"note":"One attempt per link; every exit after the claim still reports to the API."}]</script>
 
     <script id="archify-i18n-data" type="application/json">{"locale":"en","messages":{"viewer.kind.frontend":"Frontend","viewer.kind.backend":"Backend","viewer.kind.database":"Database","viewer.kind.cloud":"Cloud","viewer.kind.security":"Security","viewer.kind.messagebus":"Message bus","viewer.kind.external":"External","viewer.kind.neutral":"Neutral","viewer.kind.node":"Node","viewer.kind.start":"Start","viewer.kind.active":"Active","viewer.kind.waiting":"Waiting","viewer.kind.decision":"Decision","viewer.kind.success":"Success","viewer.kind.failure":"Failure","viewer.toolbar.actions":"Diagram actions","viewer.theme.toggle.title":"Toggle theme (T)","viewer.theme.toggle":"Toggle color theme","viewer.theme.dark":"Dark","viewer.theme.light":"Light","viewer.preset.choose.title":"Choose visual style (S cycles)","viewer.preset.choose":"Choose visual style","viewer.preset.style":"Style","viewer.preset.menu":"Visual style","viewer.preset.identity":"Visual identity","viewer.preset.cycles":"S cycles","viewer.preset.classic":"Classic","viewer.preset.classic.short":"Classic","viewer.preset.classic.hint":"Stable technical default","viewer.preset.flow":"Signal Flow","viewer.preset.flow.short":"Flow","viewer.preset.flow.hint":"Motion-forward presentation","viewer.preset.blueprint":"Blueprint","viewer.preset.blueprint.hint":"Engineering review","viewer.preset.editorial":"Editorial","viewer.preset.editorial.hint":"Publication and launch notes","viewer.preset.badge.signalFlow":"SIGNAL FLOW","viewer.preset.badge.blueprint":"BLUEPRINT / REV 01","viewer.preset.badge.editorial":"EDITORIAL / FIELD NOTE","viewer.preset.badge.editorialPlate":"ARCHIFY / PLATE 04","viewer.preset.current":"Visual style: {style}. Choose visual style","viewer.motion.live":"Live","viewer.motion.still":"Still","viewer.motion.pause":"Pause motion","viewer.motion.resume":"Resume motion","viewer.motion.reduced":"Motion paused by reduced-motion preference","viewer.motion.hidden":"Motion paused while this page is hidden","viewer.motion.yielding":"Pause motion; currently yielding to {owner}","viewer.motion.yielding.title":"Live preview enabled · yielding to {owner}","viewer.owner.story":"the guided story","viewer.owner.chapter":"the active chapter","viewer.owner.chapterPreview":"the chapter delta preview","viewer.owner.handoff":"the chapter handoff","viewer.owner.route":"Route Probe","viewer.owner.lens":"Semantic Lens","viewer.owner.relationship":"Relationship Preview","viewer.owner.intent":"Intent Trace","viewer.owner.focus":"semantic focus","viewer.owner.legend":"legend preview","viewer.owner.reader":"reader interaction","viewer.present.enter":"Enter presentation stage","viewer.present.enter.title":"Presentation stage (F)","viewer.present.exit":"Exit presentation stage","viewer.present.exit.title":"Exit presentation stage (F or Escape)","viewer.present.present":"Present","viewer.present.exit.label":"Exit","viewer.export.button":"Export","viewer.export.button.title":"Export diagram (E)","viewer.export.diagram":"Export diagram","viewer.export.menu":"Export","viewer.export.subtitle":"Portable, clean outputs","viewer.export.share":"Share","viewer.export.shareCard":"Share Card","viewer.export.routeShareCard":"Route Share Card","viewer.export.reachShareCard":"Reach Share Card","viewer.export.copyShareCard":"Copy Share Card","viewer.export.copyDiagram":"Copy diagram","viewer.export.clipboardPng":"PNG to clipboard","viewer.export.raster":"Raster images","viewer.export.image":"Image","viewer.export.lossless":"Lossless image","viewer.export.compact":"Compact image","viewer.export.modern":"Modern image","viewer.export.vectorMotion":"Vector and motion","viewer.export.vectorMotion.heading":"Vector \u0026 motion","viewer.export.editable":"Editable vector","viewer.export.motion6s":"6s motion","viewer.export.unsupported":"Not supported by this browser","viewer.export.clipboardUnsupported":"Clipboard image write not supported by this browser","viewer.export.clipboardUnsupported.period":"Clipboard image write not supported by this browser.","viewer.export.clipboardUnsupported.short":"Clipboard image write not supported in this browser.","viewer.export.motionUnavailable":"Motion capture unavailable in this browser","viewer.export.webmUnavailable":"WebM unavailable in this browser","viewer.export.failed":"Export failed: {message}","viewer.export.unknownVariant":"Unknown Share Card variant: {variant}","viewer.export.routeRequired":"Trace a route before exporting a Route Share Card","viewer.export.reachRequired":"Trace authored reach before exporting a Reach Share Card","viewer.export.unknown":"unknown","viewer.export.routeFailed":"Route Share Card export failed: {message}","viewer.export.reachFailed":"Reach Share Card export failed: {message}","viewer.export.copyFailed":"Copy failed: {message}","viewer.export.copiedPng":"Copied PNG to clipboard","viewer.export.copiedShare":"Copied Share Card","viewer.export.downloadedShare":"Downloaded Share Card","viewer.export.downloadedRoute":"Downloaded Route Share Card","viewer.export.downloadedReach":"Downloaded Reach Share Card","viewer.export.downloadedWebm":"Downloaded WebM","viewer.export.recording":"Recording 6 seconds of motion…","viewer.export.card.routeSummary.one":"Route: {source} → {target} · {count} directed hop","viewer.export.card.routeSummary.other":"Route: {source} → {target} · {count} directed hops","viewer.export.card.reachSummary":"Authored {direction} from {origin} · {nodes} · {links} · max {hops}","viewer.export.card.node.one":"{count} node","viewer.export.card.node.other":"{count} nodes","viewer.export.card.link.one":"{count} link","viewer.export.card.link.other":"{count} links","viewer.export.card.hop.one":"{count} hop","viewer.export.card.hop.other":"{count} hops","viewer.export.card.routeBadge":"ARCHIFY · ROUTE · {hops}","viewer.export.card.reachBadge":"ARCHIFY · {direction} REACH","viewer.export.card.defaultBadge":"ARCHIFY · {preset} · {theme}","viewer.export.direction.upstream":"Upstream","viewer.export.direction.downstream":"Downstream","viewer.export.error.canvasUnavailable":"Canvas unavailable for {label}","viewer.export.error.contextUnavailable":"2D canvas context unavailable for {label}","viewer.export.error.toBlobUnavailable":"canvas.toBlob unavailable for {label}","viewer.export.error.toBlobNull":"canvas.toBlob returned no data for {label}","viewer.export.error.variantsCombined":"Share Card variants cannot be combined","viewer.export.error.viewerState":"Share Card export could not remove temporary viewer state","viewer.export.error.routeState":"Route Card export could not preserve the resolved route safely","viewer.export.error.reachState":"Reach Card export could not preserve authored reach safely","viewer.export.error.webmRequirements":"WebM motion export requires a trace animation and browser MediaRecorder support","viewer.export.error.mediaRecorder":"MediaRecorder failed","viewer.export.error.emptyWebm":"MediaRecorder produced an empty WebM","viewer.export.error.webmBackground":"SVG background could not be loaded for WebM export","viewer.guided.region":"Guided diagram views","viewer.guided.previous":"Previous guided view","viewer.guided.previous.title":"Previous guided view ([)","viewer.guided.next":"Next guided view","viewer.guided.next.title":"Next guided view (])","viewer.guided.views":"Guided views","viewer.guided.explore":"Explore this system","viewer.guided.intro":"Step through curated paths without changing the source diagram.","viewer.guided.trail":"Story trail","viewer.guided.beat":"Beat","viewer.guided.nextBeat":"Next","viewer.guided.play":"Play guided story","viewer.guided.play.title":"Play guided story (P)","viewer.guided.pause":"Pause guided story","viewer.guided.pause.title":"Pause guided story (P)","viewer.guided.replay":"Replay guided story","viewer.guided.replay.title":"Replay guided story (P)","viewer.guided.playStory":"Play story","viewer.guided.pauseStory":"Pause","viewer.guided.replayStory":"Replay story","viewer.guided.motionUnavailable":"Story playback unavailable while motion is Still","viewer.guided.enableMotion":"Switch motion to Live to play the guided story","viewer.guided.selectBeatLink":"Select a Story Beat to copy its exact link","viewer.guided.copyMoment":"Copy moment","viewer.guided.momentCopied":"Moment link copied","viewer.guided.momentCopyFailed":"Could not copy story moment link","viewer.guided.copied":"Copied","viewer.guided.copyFailed":"Copy failed","viewer.guided.showAll":"Show all","viewer.guided.showAll.aria":"Show entire diagram","viewer.guided.chapters":"Story chapters","viewer.guided.storyTrail":"Story trail for {label}: {count} beats","viewer.guided.chapter.open":"Open chapter {index} of {total}: {label}, {count} stops","viewer.guided.chapter.current":"Current chapter {index} of {total}: {label}, {count} stops","viewer.guided.chapter.selectedNodes":"{count} selected nodes","viewer.guided.chapter.stops":"{count} stops","viewer.guided.chapter.stop.one":"{count} stop","viewer.guided.chapter.stop.other":"{count} stops","viewer.guided.chapter.current.title":"{label} — current chapter, {count} stops","viewer.guided.chapter.delta.expanded":"{stay} stay, {enter} enter, {leave} leave","viewer.guided.chapter.delta.aria":"Open chapter {index} of {total}: {label}. Chapter focus delta: {delta}","viewer.guided.chapter.delta.title":"{label} — {delta} chapter focus","viewer.guided.handoff":"{from} → {to} · via {label}","viewer.guided.share.chapter":"Chapter {index} / {total}","viewer.guided.share.initial":"Chapter 01 / 01","viewer.guided.share.default":"Guided chapter","viewer.guided.state.ready":"Ready","viewer.guided.state.playing":"Playing","viewer.guided.state.settled":"Settled","viewer.guided.state.paused":"Paused","viewer.guided.state.pinned":"Pinned","viewer.guided.state.still":"Still","viewer.guided.share.step":"Step {index} / {total} · {label}","viewer.guided.share.staticMoment":"{step} · Static moment","viewer.guided.share.complete":"{count} steps complete · {note}","viewer.guided.share.settled":"Path settled for reading.","viewer.guided.share.staticPath":"{count} steps · Static path","viewer.guided.share.ready":"{count} steps · Ready","viewer.guided.share.aria":"{state} chapter {index} of {total}: {label}. {beat}. {route}","viewer.guided.beat.start":"Beat {index} / {total} · {label} · starting point","viewer.guided.beat.forward":"Beat {index} / {total} · {from} → {to}","viewer.guided.beat.reverse":"Beat {index} / {total} · {from} → {to} · reverse authored link","viewer.guided.beat.multiple":"Beat {index} / {total} · {from} ⇄ {to} · {count} authored links","viewer.guided.beat.group":"Beat {index} / {total} · {from} · {to} · grouped · no direct link","viewer.guided.beat.aria.prefix":"Story beat {index} of {total}: {label}. ","viewer.guided.beat.aria.start":"Starting point.","viewer.guided.beat.aria.forward":"From {from} through one authored forward relationship.","viewer.guided.beat.aria.reverse":"From {from}; the authored relationship points from {to} to {from}.","viewer.guided.beat.aria.multiple":"From {from} through {count} authored relationships; shown without arbitrary motion.","viewer.guided.beat.aria.group":"Grouped from {from} with no direct authored relationship.","viewer.guided.caption.start":"Starting point","viewer.guided.caption.grouped":"Grouped transition · no direct authored link","viewer.guided.caption.more":" +{count} more","viewer.guided.caption.reverse":"Reverse authored relationship","viewer.guided.caption.relationships":"{count} authored relationships","viewer.guided.caption.relationship":"Authored relationship","viewer.guided.caption.direction":"authored direction: {from} → {to}","viewer.guided.caption.starting":"Authored starting point","viewer.guided.beatLink":"Copy link to current story moment: Beat {index} of {total}: {label}","viewer.guided.noStory":"This diagram has no authored guided story.","viewer.guide.eyebrow":"Diagram guide","viewer.guide.close":"Close diagram guide","viewer.guide.inspecting":"Inspecting compiled semantics","viewer.guide.actions":"Diagram exploration actions","viewer.guide.find":"Find any node","viewer.guide.find.hint":"Search labels, responsibilities, kinds, and stable IDs.","viewer.guide.route":"Trace a route","viewer.guide.route.aria":"Trace a directed route","viewer.guide.route.hint":"Ask how two semantic nodes connect in authored direction.","viewer.guide.map":"See the whole system","viewer.guide.map.hint":"Open Semantic Radar with a live viewport and stable nodes.","viewer.guide.lens":"Compare semantic kinds","viewer.guide.lens.hint":"Count roles, reveal their traffic, and compare direct authored links.","viewer.guide.story":"Play the guided story","viewer.guide.story.hint":"Walk the authored chapters and real relationships.","viewer.guide.present":"Enter Presentation Stage","viewer.guide.present.hint":"Give the live diagram the viewport without changing export.","viewer.guide.shortcuts":"Additional keyboard shortcuts","viewer.guide.shortcut.export":"Export","viewer.guide.shortcut.theme":"Theme","viewer.guide.shortcut.style":"Style","viewer.guide.shortcut.reset":"Reset","viewer.guide.shortcut.zoomIn":"Zoom in","viewer.guide.shortcut.zoomOut":"Zoom out","viewer.guide.shortcut.close":"Close","viewer.guide.facts":"{nodes} · {relationships} · {views}","viewer.guide.fact.node.one":"{count} semantic node","viewer.guide.fact.node.other":"{count} semantic nodes","viewer.guide.fact.relationship.one":"{count} relationship","viewer.guide.fact.relationship.other":"{count} relationships","viewer.guide.fact.view.one":"{count} guided view","viewer.guide.fact.view.other":"{count} guided views","viewer.guide.story.available.one":"Walk {count} authored chapter and its real relationships.","viewer.guide.story.available.other":"Walk {count} authored chapters and their real relationships.","viewer.guide.story.unavailable":"No authored guided story in this diagram.","viewer.guide.open":"Open diagram guide","viewer.guide.noStory":"This diagram has no authored guided story.","viewer.finder.title":"Find a node","viewer.finder.close":"Close node finder","viewer.finder.placeholder":"Search labels or IDs","viewer.finder.search":"Search diagram nodes","viewer.finder.results":"Diagram nodes","viewer.finder.empty":"No matching nodes","viewer.finder.result.focus":"Focus {label}","viewer.finder.result.routeStart":"Choose {label} as route start","viewer.finder.result.routeTarget":"Choose {label} as route destination, {links}","viewer.finder.status.empty":"No matching nodes","viewer.finder.status.count.one":"{count} matching node","viewer.finder.status.count.other":"{count} matching nodes","viewer.finder.noun.nodes":"nodes","viewer.finder.link.one":"{count} link","viewer.finder.link.other":"{count} links","viewer.finder.result.focus.one":"Focus {label}, {count} related connection","viewer.finder.result.focus.other":"Focus {label}, {count} related connections","viewer.finder.status.filtered":"{visible} of {available} {noun}","viewer.finder.status.all":"{available} {noun}","viewer.passport.eyebrow":"Semantic passport","viewer.passport.metadata":"Node metadata","viewer.passport.evidence":"Verified source evidence","viewer.passport.verified":"Verified source","viewer.passport.verificationScope":"Verified against local Git at the pinned revision. Remote access has not been checked.","viewer.passport.reach":"Authored reach","viewer.passport.reach.trace":"Trace authored reachability","viewer.passport.upstream":"Upstream","viewer.passport.downstream":"Downstream","viewer.passport.upstream.trace":"Trace upstream authored reachability","viewer.passport.downstream.trace":"Trace downstream authored reachability","viewer.passport.close":"Close semantic passport","viewer.passport.copy":"Copy link","viewer.passport.copy.focus":"Copy link to focused node","viewer.passport.relations":"Relations","viewer.passport.relations.show":"Show connected relationships","viewer.passport.relations.hide":"Hide connected relationships","viewer.passport.relations.list":"Connected relationships","viewer.passport.copyRelation":"Copy relation","viewer.passport.copyNode":"Copy node","viewer.passport.copyPinned":"Copy link to pinned relationship","viewer.passport.copySource":"Copy link to source node","viewer.passport.copy.focused.success":"Focused node link copied","viewer.passport.copy.pinned.success":"Pinned relationship link copied","viewer.passport.copy.focused.failed":"Could not copy focused node link","viewer.passport.copy.pinned.failed":"Could not copy pinned relationship link","viewer.passport.relationship.none":"No connected relationships","viewer.passport.relationship.count.one":"{count} relation","viewer.passport.relationship.count.other":"{count} relations","viewer.passport.relationship.show.one":"Show {count} connected relationship","viewer.passport.relationship.show.other":"Show {count} connected relationships","viewer.passport.relationship.summary":"{out} outgoing · {in} incoming{loops}","viewer.passport.relationship.loops":" · {count} loop","viewer.passport.relationship.explorer":"Direct relationship explorer","viewer.passport.relationship.help":"Use arrow keys to explore relationships. Press Enter or Space to pin details; Escape clears.","viewer.passport.relationship.loopsBack":"loops back","viewer.passport.relationship.connectsTo":"connects to","viewer.passport.relationship.connectsFrom":"connects from","viewer.passport.relationship.pinned":"Pinned relationship · {from} → {to} · {label}","viewer.passport.relationship.inspect":"Inspect relationship {index} of {total}: {from} to {to}, {label}. Press Enter for details.","viewer.passport.relationship.group.out":"Outgoing","viewer.passport.relationship.group.in":"Incoming","viewer.passport.relationship.group.loop":"Self loops","viewer.passport.relationship.row":"{group}: {relationship}, {neighbor}","viewer.passport.relationship.direction.out":"OUT →","viewer.passport.relationship.direction.in":"← IN","viewer.passport.relationship.direction.loop":"LOOP","viewer.passport.sourceCount.one":"{count} verified source reference","viewer.passport.sourceCount.other":"{count} verified source references","viewer.passport.sourceMarker":"SRC","viewer.passport.beacon.one":"{count} verified source; focus this node to inspect","viewer.passport.beacon.other":"{count} verified sources; focus this node to inspect","viewer.passport.repository.open":"Open verified repository revision {revision}","viewer.passport.source.open":"Open verified source {path} at revision {revision}","viewer.passport.source.openLink":"Open ↗","viewer.passport.reach.upstream.one":"Trace {count} upstream authored node","viewer.passport.reach.upstream.other":"Trace {count} upstream authored nodes","viewer.passport.reach.downstream.one":"Trace {count} downstream authored node","viewer.passport.reach.downstream.other":"Trace {count} downstream authored nodes","viewer.passport.reach.noUpstream":"No upstream authored nodes","viewer.passport.reach.noDownstream":"No downstream authored nodes","viewer.passport.reach.status":"{direction} · {nodes} nodes · {links} links · max {hops} hops","viewer.route.eyebrow":"Route probe","viewer.route.start":"Choose a start node","viewer.route.start.find":"Find start","viewer.route.start.find.aria":"Find a route start","viewer.route.copy":"Copy link","viewer.route.copy.aria":"Copy link to traced route","viewer.route.clear":"Clear","viewer.route.clear.aria":"Clear route probe","viewer.route.traced":"Traced route","viewer.route.pickTwo":"Pick two semantic nodes on the diagram","viewer.route.pickOne":"Pick a semantic node on the diagram","viewer.route.controls":"Route journey controls","viewer.route.previous":"Previous route position","viewer.route.play":"Play route journey","viewer.route.pause":"Pause route journey","viewer.route.replay":"Replay route journey","viewer.route.next":"Next route position","viewer.route.journey":"Journey","viewer.route.pause.label":"Pause","viewer.route.replay.label":"Replay","viewer.route.overview":"Overview","viewer.route.overview.aria":"Show complete route overview","viewer.route.instructions":"Choose the source, then the destination. Direction matters.","viewer.route.destination":"Choose a destination from {label}","viewer.route.destination.find":"Find target","viewer.route.destination.find.aria":"Find a reachable route destination","viewer.route.differentDestination":"Choose a different destination","viewer.route.distinct":"A route needs two distinct semantic nodes.","viewer.route.unreachable":"No directed route to {label}","viewer.route.unreachable.detail":"{target} is not reachable from {source}. Pick a highlighted destination.","viewer.route.start.instructions":"Select the source. The next step will reveal only directed destinations.","viewer.route.copy.success":"Traced route link copied","viewer.route.copy.failed":"Could not copy traced route link","viewer.route.position":"Route position {index} of {total}: {label}","viewer.route.step":"Step {index} of {total} · {phase} · {label}","viewer.route.motionRequired":"Automatic journey requires Live motion","viewer.route.trigger.clear":"Clear traced route","viewer.route.overview.status":"{nodes} · {hops} · shortest authored route","viewer.route.overview.node.one":"{count} node","viewer.route.overview.node.other":"{count} nodes","viewer.route.overview.hop.one":"{count} directed hop","viewer.route.overview.hop.other":"{count} directed hops","viewer.route.phase.playing":"Playing","viewer.route.phase.complete":"Complete","viewer.route.phase.inspecting":"Inspecting","viewer.route.destination.count.one":"{count} directed destination available. Pick a highlighted node.","viewer.route.destination.count.other":"{count} directed destinations available. Pick a highlighted node.","viewer.route.noOutgoing":"No outgoing route starts here. Clear and choose another source.","viewer.route.result.title":"{source} to {target}","viewer.route.finder.source.title":"Choose route start","viewer.route.finder.source.placeholder":"Search route sources","viewer.route.finder.source.empty":"No matching route sources","viewer.route.finder.source.results":"Nodes that can start a route","viewer.route.finder.source.noun":"route sources","viewer.route.finder.source.badge":"start","viewer.route.finder.target.title":"Destination from {label}","viewer.route.finder.target.placeholder":"Search reachable destinations","viewer.route.finder.target.empty":"No matching reachable destinations","viewer.route.finder.target.results":"Reachable route destinations","viewer.route.finder.target.noun":"reachable destinations","viewer.route.hop.one":"{count} hop","viewer.route.hop.other":"{count} hops","viewer.lens.eyebrow":"Semantic lens","viewer.lens.title":"Compare system roles","viewer.lens.close":"Close semantic lens","viewer.lens.instruction":"Choose up to two semantic kinds. One reveals its real traffic; two compare only direct authored relationships.","viewer.lens.kinds":"Semantic kinds","viewer.lens.choose":"Choose a kind to inspect its nodes and touching relationships.","viewer.lens.copy":"Copy link to semantic lens","viewer.lens.clear":"Clear semantic lens","viewer.lens.open":"Open semantic lens","viewer.lens.openActive":"Open active semantic lens","viewer.lens.legend":"Semantic legend","viewer.lens.legend.inspect.one":"Inspect {label}, {count} node","viewer.lens.legend.inspect.other":"Inspect {label}, {count} nodes","viewer.lens.kind.count.one":"{label}, {count} node","viewer.lens.kind.count.other":"{label}, {count} nodes","viewer.lens.compare.one":"{first} → {second}: {forward} · {second} → {first}: {reverse} · {count} direct relationship","viewer.lens.compare.other":"{first} → {second}: {forward} · {second} → {first}: {reverse} · {count} direct relationships","viewer.lens.single":"{nodes} · {relationships} · connected peers remain visible","viewer.lens.node.one":"{count} {label} node","viewer.lens.node.other":"{count} {label} nodes","viewer.lens.relationship.one":"{count} touching relationship","viewer.lens.relationship.other":"{count} touching relationships","viewer.radar.title":"Semantic radar","viewer.radar.building":"Building overview","viewer.radar.openFull":"Open full semantic radar","viewer.radar.open":"Open radar","viewer.radar.close":"Close semantic radar","viewer.radar.surface":"Diagram overview. Click a node to focus it, or use arrow keys to pan.","viewer.radar.click":"Click node","viewer.radar.drag":"Drag to pan","viewer.radar.space":"Semantic radar needs more MAP space.","viewer.radar.nodes":"Semantic diagram radar nodes","viewer.radar.focus":"Focus {label} from Semantic Radar","viewer.radar.status":"{count} nodes · {viewport}","viewer.radar.fullMap":"{count} nodes · full map","viewer.radar.compacted":"Radar compacted to avoid covering the Semantic Passport or MAP controls.","viewer.radar.cancelWaiting":"Cancel semantic radar waiting for more MAP space","viewer.radar.needsSpace":"Semantic radar needs more visible MAP space","viewer.radar.viewport.full":"full map","viewer.radar.viewport.width":"{percent}% width","viewer.radar.viewport.scale":"{percent}% viewport","viewer.nav.controls":"Diagram view controls","viewer.nav.route":"Trace a directed route","viewer.nav.route.title":"Trace route (R)","viewer.nav.route.short":"PATH","viewer.nav.radar":"Open semantic radar","viewer.nav.radar.title":"Semantic radar (M)","viewer.nav.radar.short":"MAP","viewer.nav.lens":"Open semantic lens","viewer.nav.lens.title":"Semantic lens (L)","viewer.nav.lens.short":"LENS","viewer.nav.find":"Find a node","viewer.nav.find.title":"Find a node (/)","viewer.nav.guide":"Open diagram guide","viewer.nav.guide.title":"Diagram guide (?)","viewer.nav.zoomOut":"Zoom out","viewer.nav.zoomOut.title":"Zoom out (-)","viewer.nav.reset":"Reset diagram view","viewer.nav.reset.title":"Reset view (0)","viewer.nav.read":"READ","viewer.nav.zoomIn":"Zoom in","viewer.nav.zoomIn.title":"Zoom in (+)","viewer.nav.camera":"{hint}. Reset diagram view","viewer.nav.camera.title":"{semantic}{hint} · reset view (0)","viewer.nav.camera.semantic":"Semantic camera active · ","viewer.nav.level.map":"MAP","viewer.nav.level.read":"READ","viewer.nav.level.full":"FULL","viewer.nav.level.auto":"AUTO","viewer.nav.detail.map":"Zoom in to reveal relationship labels and node context","viewer.nav.detail.read":"Zoom in again to reveal tags and annotations","viewer.nav.detail.full":"Full diagram detail","viewer.intent.summary":"{label}. {out} outgoing, {in} incoming{loops}. {total} connections. Press Enter for details.","viewer.intent.loops":", {count} self loop","viewer.common.copied":"Copied","viewer.common.copyFailed":"Copy failed","viewer.common.copyLink":"Copy link","viewer.common.clear":"Clear","viewer.common.close":"Close"}}</script>
     <div class="guided-views no-print" id="guided-views" hidden aria-label="Guided diagram views">
@@ -5130,7 +5130,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
     <!-- Main Diagram -->
     <div class="diagram-container" data-detail-level="read"
          data-preset-badge-editorial-plate="ARCHIFY / PLATE 04">
-      <svg viewBox="0 0 1081 786" role="img" lang="en" aria-labelledby="archify-diagram-title archify-diagram-description" data-preset="classic" data-quality-profile="showcase">
+      <svg viewBox="0 0 1053 652" role="img" lang="en" aria-labelledby="archify-diagram-title archify-diagram-description" data-preset="classic" data-quality-profile="showcase">
         <title id="archify-diagram-title">Guru Agent Architecture</title>
         <desc id="archify-diagram-description">A workflow diagram generated by Archify.</desc>
         <!-- Definitions -->
@@ -5156,21 +5156,18 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         <rect width="100%" height="100%" fill="url(#grid)" />
 
         <!-- Swimlanes -->
-        <rect data-graph-role="structural-frame" data-composition-frame-kind="lane" data-composition-frame-id="lane-0" x="40" y="52" width="1017" height="106" rx="10" class="c-lane" stroke-width="1"/>
-        <text x="54" y="74" class="t-dim" font-size="10" font-weight="600">01 / Offline prep (CLI)</text>
+        <rect data-graph-role="structural-frame" data-composition-frame-kind="lane" data-composition-frame-id="lane-0" x="40" y="52" width="997" height="104" rx="10" class="c-lane" stroke-width="1"/>
+        <text x="54" y="74" class="t-dim" font-size="10" font-weight="600">01 / Backend API</text>
 
-        <rect data-graph-role="structural-frame" data-composition-frame-kind="lane" data-composition-frame-id="lane-1" x="40" y="178" width="1017" height="106" rx="10" class="c-lane" stroke-width="1"/>
-        <text x="54" y="200" class="t-dim" font-size="10" font-weight="600">02 / Live voice session (LiveKit AgentSession)</text>
+        <rect data-graph-role="structural-frame" data-composition-frame-kind="lane" data-composition-frame-id="lane-1" x="40" y="176" width="997" height="104" rx="10" class="c-lane" stroke-width="1"/>
+        <text x="54" y="198" class="t-dim" font-size="10" font-weight="600">02 / Helpers</text>
 
-        <rect data-graph-role="structural-frame" data-composition-frame-kind="lane" data-composition-frame-id="lane-2" x="40" y="304" width="1017" height="106" rx="10" class="c-lane" stroke-width="1"/>
-        <text x="54" y="326" class="t-dim" font-size="10" font-weight="600">03 / Off-hot-path helpers</text>
+        <rect data-graph-role="structural-frame" data-composition-frame-kind="lane" data-composition-frame-id="lane-2" x="40" y="300" width="997" height="104" rx="10" class="c-lane" stroke-width="1"/>
+        <text x="54" y="322" class="t-dim" font-size="10" font-weight="600">03 / Voice session</text>
 
-        <rect data-graph-role="structural-frame" data-composition-frame-kind="lane" data-composition-frame-id="lane-3" x="40" y="430" width="1017" height="106" rx="10" class="c-lane" stroke-width="1"/>
-        <rect data-graph-role="structural-frame" data-composition-frame-kind="exception-lane" data-composition-frame-id="lane-3-exception" x="46" y="436" width="1005" height="94" rx="8" class="c-security-group" stroke-width="1"/>
-        <text x="54" y="452" class="t-security" font-size="10" font-weight="600">EX / Forced exits</text>
-
-        <rect data-graph-role="structural-frame" data-composition-frame-kind="lane" data-composition-frame-id="lane-4" x="40" y="556" width="1017" height="106" rx="10" class="c-lane" stroke-width="1"/>
-        <text x="54" y="578" class="t-dim" font-size="10" font-weight="600">05 / Post-session (CLI)</text>
+        <rect data-graph-role="structural-frame" data-composition-frame-kind="lane" data-composition-frame-id="lane-3" x="40" y="424" width="997" height="104" rx="10" class="c-lane" stroke-width="1"/>
+        <rect data-graph-role="structural-frame" data-composition-frame-kind="exception-lane" data-composition-frame-id="lane-3-exception" x="46" y="430" width="985" height="92" rx="8" class="c-security-group" stroke-width="1"/>
+        <text x="54" y="446" class="t-security" font-size="10" font-weight="600">EX / Forced exits</text>
 
         <!-- Phase headers -->
 
@@ -5179,227 +5176,231 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
 
 
         <!-- Edge paths -->
-        <path data-edge-from="closing" data-edge-to="lookup" data-edge-key="0" data-edge-id="ask-closing" data-composition-points="770,272;770,346" d="M 770 272 L 770 346" class="a-dashed" stroke-width="1.4" marker-end="url(#arrowhead-dashed)"/>
-        <path data-edge-from="interviewer" data-edge-to="lookup" data-edge-label="company Q" data-edge-key="1" data-edge-id="ask-interviewer" data-composition-points="652.4,246;668.4,246;668.4,294;770,294;770,346" d="M 652.4 246 L 668.4 246 L 668.4 294 L 770 294 L 770 346" class="a-dashed" stroke-width="1.4" marker-end="url(#arrowhead-dashed)"/>
-        <path data-edge-from="timer" data-edge-to="hardcap" data-edge-label="cap reached" data-edge-key="2" data-edge-id="cap" data-composition-points="374,398;374,420;770,420;770,472" d="M 374 398 L 374 420 L 770 420 L 770 472" class="a-security" stroke-width="1.4" marker-end="url(#arrowhead-security)"/>
-        <path data-edge-from="hardcap" data-edge-to="transcript" data-edge-label="on shutdown" data-edge-key="3" data-edge-id="cap-save" data-composition-points="836,498;975.4,498;975.4,272" d="M 836 498 L 975.4 498 L 975.4 272" class="a-dashed" stroke-width="1.4" marker-end="url(#arrowhead-dashed)"/>
-        <path data-edge-from="consent" data-edge-to="interviewer" data-edge-label="consent_given" data-edge-key="4" data-edge-id="consented" data-composition-points="440,239;520.4,239" d="M 440 239 L 520.4 239" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path data-edge-from="consent" data-edge-to="declined" data-edge-label="consent_declined" data-edge-key="5" data-edge-id="declined-edge" data-composition-points="308,246;20,246;20,498;520.4,498" d="M 308 246 L 20 246 L 20 498 L 520.4 498" class="a-security" stroke-width="1.4" marker-end="url(#arrowhead-security)"/>
-        <path data-edge-from="closing" data-edge-to="transcript" data-edge-label="end_interview" data-edge-key="6" data-edge-id="end-interview" data-composition-points="836,246;916.4,246" d="M 836 246 L 916.4 246" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path data-edge-from="interviewer" data-edge-to="observer" data-edge-label="each answer" data-edge-key="7" data-edge-id="grade" data-composition-points="586.4,212;586.4,162;668.4,162;668.4,372;652.4,372" d="M 586.4 212 L 586.4 162 L 668.4 162 L 668.4 372 L 652.4 372" class="a-dashed" stroke-width="1.4" marker-end="url(#arrowhead-dashed)"/>
-        <path data-edge-from="interviewer" data-edge-to="closing" data-edge-label="handoff" data-edge-key="8" data-edge-id="handoff-closing" data-composition-points="652.4,246;668.4,246;668.4,162;770,162;770,220" d="M 652.4 246 L 668.4 246 L 668.4 162 L 770 162 L 770 220" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path data-edge-from="planner" data-edge-to="consent" data-edge-label="plan.json" data-edge-key="9" data-edge-id="plan-json" data-composition-points="320,120;374,120;374,220" d="M 320 120 L 374 120 L 374 220" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path data-edge-from="transcript" data-edge-to="scorer" data-edge-key="10" data-edge-id="score" data-composition-points="1048.4,246;1064.4,246;1064.4,624;1048.4,624" d="M 1048.4 246 L 1064.4 246 L 1064.4 624 L 1048.4 624" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path data-edge-from="interviewer" data-edge-to="timer" data-edge-label="spawn" data-edge-key="11" data-edge-id="spawn-timer" data-composition-points="520.4,246;504.4,246;504.4,294;374,294;374,346" d="M 520.4 246 L 504.4 246 L 504.4 294 L 374 294 L 374 346" class="a-dashed" stroke-width="1.4" marker-end="url(#arrowhead-dashed)"/>
+        <path data-edge-from="closing" data-edge-to="lookup" data-edge-label="company Q" data-edge-key="0" data-edge-id="ask-closing" data-composition-points="630,341;630,269" d="M 630 341 L 630 269" class="a-dashed" stroke-width="1.4" marker-end="url(#arrowhead-dashed)"/>
+        <path data-edge-from="timer" data-edge-to="hardcap" data-edge-key="1" data-edge-id="cap" data-composition-points="962.4,269;962.4,465" d="M 962.4 269 L 962.4 465" class="a-security" stroke-width="1.4" marker-end="url(#arrowhead-security)"/>
+        <path data-edge-from="consent" data-edge-to="interviewer" data-edge-label="consent_given" data-edge-key="2" data-edge-id="consented" data-composition-points="300,367;380.4,367" d="M 300 367 L 380.4 367" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path data-edge-from="consent" data-edge-to="declined" data-edge-key="3" data-edge-id="declined-edge" data-composition-points="234,393;234,465" d="M 234 393 L 234 465" class="a-security" stroke-width="1.4" marker-end="url(#arrowhead-security)"/>
+        <path data-edge-from="closing" data-edge-to="transcript" data-edge-label="end_interview" data-edge-key="4" data-edge-id="end-interview" data-composition-points="696,367;776.4,367" d="M 696 367 L 776.4 367" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path data-edge-from="interviewer" data-edge-to="gone" data-edge-key="5" data-edge-id="gone-edge" data-composition-points="446.4,393;446.4,465" d="M 446.4 393 L 446.4 465" class="a-security" stroke-width="1.4" marker-end="url(#arrowhead-security)"/>
+        <path data-edge-from="interviewer" data-edge-to="observer" data-edge-label="each answer" data-edge-key="6" data-edge-id="grade" data-composition-points="446.4,341;446.4,269" d="M 446.4 341 L 446.4 269" class="a-dashed" stroke-width="1.4" marker-end="url(#arrowhead-dashed)"/>
+        <path data-edge-from="interviewer" data-edge-to="closing" data-edge-label="handoff" data-edge-key="7" data-edge-id="handoff-closing" data-composition-points="512.4,367;564,367" d="M 512.4 367 L 564 367" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path data-edge-from="start" data-edge-to="consent" data-edge-label="plan" data-edge-key="8" data-edge-id="plan" data-composition-points="180,119;234,119;234,341" d="M 180 119 L 234 119 L 234 341" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path data-edge-from="start" data-edge-to="rejected" data-edge-label="409" data-edge-key="9" data-edge-id="rejected-edge" data-composition-points="48,119;20,119;20,491;59,491" d="M 48 119 L 20 119 L 20 491 L 59 491" class="a-security" stroke-width="1.4" marker-end="url(#arrowhead-security)"/>
+        <path data-edge-from="transcript" data-edge-to="scorer" data-edge-label="results" data-edge-key="10" data-edge-id="score" data-composition-points="842.4,341;842.4,145" d="M 842.4 341 L 842.4 145" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
 
         <!-- Nodes -->
-        <g id="node-kb" data-node-id="kb" data-node-label="kb seed" tabindex="0" role="button" aria-label="Focus kb seed, writes Qdrant kb_chunks, Offline prep (CLI)" aria-pressed="false" data-node-kind="database" data-node-sublabel="writes Qdrant kb_chunks" data-node-context="Offline prep (CLI)">
-          <title>kb seed · writes Qdrant kb_chunks · Offline prep (CLI)</title>
-          <rect x="48" y="94" width="132" height="52" rx="6" class="c-mask"/>
-          <rect x="48" y="94" width="132" height="52" rx="6" class="c-database" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(54 100) scale(0.6875)">
-            <ellipse cx="8" cy="4" rx="5" ry="2"/>
-            <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
-          </g>
-          <text data-node-label="" data-detail-anchor="" x="114" y="115" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">kb seed</text>
-          <text data-detail="context" x="114" y="132" class="t-muted" font-size="8" text-anchor="middle">writes Qdrant kb_chunks</text>
-        </g>
-
-        <g id="node-planner" data-node-id="planner" data-node-label="Planner" tabindex="0" role="button" aria-label="Focus Planner, make_plan + fit_to_time, Offline prep (CLI)" aria-pressed="false" data-node-kind="backend" data-node-sublabel="make_plan + fit_to_time" data-node-context="Offline prep (CLI)">
-          <title>Planner · make_plan + fit_to_time · Offline prep (CLI)</title>
-          <rect x="188" y="94" width="132" height="52" rx="6" class="c-mask"/>
-          <rect x="188" y="94" width="132" height="52" rx="6" class="c-backend" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(194 100) scale(0.6875)">
-            <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
-          </g>
-          <text data-node-label="" data-detail-anchor="" x="254" y="115" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Planner</text>
-          <text data-detail="context" x="254" y="132" class="t-muted" font-size="8" text-anchor="middle">make_plan + fit_to_time</text>
-        </g>
-
-        <g id="node-consent" data-node-id="consent" data-node-label="ConsentTask" tabindex="0" role="button" aria-label="Focus ConsentTask, AgentTask[bool], Live voice session (LiveKit AgentSession)" aria-pressed="false" data-node-kind="security" data-node-sublabel="AgentTask[bool]" data-node-context="Live voice session (LiveKit AgentSession)">
-          <title>ConsentTask · AgentTask[bool] · Live voice session (LiveKit AgentSession)</title>
-          <rect x="308" y="220" width="132" height="52" rx="6" class="c-mask"/>
-          <rect x="308" y="220" width="132" height="52" rx="6" class="c-security" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="security" class="semantic-sigil s-security" transform="translate(314 226) scale(0.6875)">
+        <g id="node-start" data-node-id="start" data-node-label="POST /start" tabindex="0" role="button" aria-label="Focus POST /start, claim session, plan, Backend API" aria-pressed="false" data-node-kind="security" data-node-sublabel="claim session, plan" data-node-context="Backend API">
+          <title>POST /start · claim session, plan · Backend API</title>
+          <rect x="48" y="93" width="132" height="52" rx="6" class="c-mask"/>
+          <rect x="48" y="93" width="132" height="52" rx="6" class="c-security" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="security" class="semantic-sigil s-security" transform="translate(54 99) scale(0.6875)">
             <path d="M8 2.2 13 4v3.5c0 3.1-1.8 5.4-5 6.5-3.2-1.1-5-3.4-5-6.5V4Z"/>
             <path d="m5.8 8 1.5 1.5 3-3"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="374" y="241" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">ConsentTask</text>
-          <text data-detail="context" x="374" y="258" class="t-muted" font-size="8" text-anchor="middle">AgentTask[bool]</text>
+          <text data-node-label="" data-detail-anchor="" x="114" y="114" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">POST /start</text>
+          <text data-detail="context" x="114" y="131" class="t-muted" font-size="8" text-anchor="middle">claim session, plan</text>
         </g>
 
-        <g id="node-interviewer" data-node-id="interviewer" data-node-label="InterviewerAgent" tabindex="0" role="button" aria-label="Focus InterviewerAgent, per-question loop, Live voice session (LiveKit AgentSession)" aria-pressed="false" data-node-kind="backend" data-node-sublabel="per-question loop" data-node-tag="advance_to_next_q" data-node-context="Live voice session (LiveKit AgentSession)">
-          <title>InterviewerAgent · per-question loop · Live voice session (LiveKit AgentSession) · advance_to_next_q</title>
-          <rect x="520.4" y="212" width="132" height="68" rx="6" class="c-mask"/>
-          <rect x="520.4" y="212" width="132" height="68" rx="6" class="c-backend" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(526.4 218) scale(0.6875)">
+        <g id="node-scorer" data-node-id="scorer" data-node-label="POST /complete" tabindex="0" role="button" aria-label="Focus POST /complete, store, score_session, Backend API" aria-pressed="false" data-node-kind="backend" data-node-sublabel="store, score_session" data-node-context="Backend API">
+          <title>POST /complete · store, score_session · Backend API</title>
+          <rect x="776.4" y="93" width="132" height="52" rx="6" class="c-mask"/>
+          <rect x="776.4" y="93" width="132" height="52" rx="6" class="c-backend" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(782.4 99) scale(0.6875)">
             <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="586.4" y="233" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">InterviewerAgent</text>
-          <text data-detail="context" x="586.4" y="250" class="t-muted" font-size="8" text-anchor="middle">per-question loop</text>
-        <text data-detail="fine" x="586.4" y="268" class="t-backend" font-size="7" text-anchor="middle">advance_to_next_q</text>
+          <text data-node-label="" data-detail-anchor="" x="842.4" y="114" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">POST /complete</text>
+          <text data-detail="context" x="842.4" y="131" class="t-muted" font-size="8" text-anchor="middle">store, score_session</text>
         </g>
 
-        <g id="node-closing" data-node-id="closing" data-node-label="ClosingAgent" tabindex="0" role="button" aria-label="Focus ClosingAgent, candidate Q&amp;A, Live voice session (LiveKit AgentSession)" aria-pressed="false" data-node-kind="backend" data-node-sublabel="candidate Q&amp;A" data-node-context="Live voice session (LiveKit AgentSession)">
-          <title>ClosingAgent · candidate Q&amp;A · Live voice session (LiveKit AgentSession)</title>
-          <rect x="704" y="220" width="132" height="52" rx="6" class="c-mask"/>
-          <rect x="704" y="220" width="132" height="52" rx="6" class="c-backend" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(710 226) scale(0.6875)">
+        <g id="node-observer" data-node-id="observer" data-node-label="Observer" tabindex="0" role="button" aria-label="Focus Observer, one call per answer, Helpers" aria-pressed="false" data-node-kind="backend" data-node-sublabel="one call per answer" data-node-context="Helpers">
+          <title>Observer · one call per answer · Helpers</title>
+          <rect x="380.4" y="217" width="132" height="52" rx="6" class="c-mask"/>
+          <rect x="380.4" y="217" width="132" height="52" rx="6" class="c-backend" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(386.4 223) scale(0.6875)">
             <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="770" y="241" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">ClosingAgent</text>
-          <text data-detail="context" x="770" y="258" class="t-muted" font-size="8" text-anchor="middle">candidate Q&amp;A</text>
+          <text data-node-label="" data-detail-anchor="" x="446.4" y="238" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Observer</text>
+          <text data-detail="context" x="446.4" y="255" class="t-muted" font-size="8" text-anchor="middle">one call per answer</text>
         </g>
 
-        <g id="node-transcript" data-node-id="transcript" data-node-label="save_transcript" tabindex="0" role="button" aria-label="Focus save_transcript, out/&lt;session_id&gt;.json, Live voice session (LiveKit AgentSession)" aria-pressed="false" data-node-kind="database" data-node-sublabel="out/&lt;session_id&gt;.json" data-node-context="Live voice session (LiveKit AgentSession)">
-          <title>save_transcript · out/&lt;session_id&gt;.json · Live voice session (LiveKit AgentSession)</title>
-          <rect x="916.4" y="220" width="132" height="52" rx="6" class="c-mask"/>
-          <rect x="916.4" y="220" width="132" height="52" rx="6" class="c-database" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(922.4 226) scale(0.6875)">
-            <ellipse cx="8" cy="4" rx="5" ry="2"/>
-            <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
+        <g id="node-lookup" data-node-id="lookup" data-node-label="kb.lookup" tabindex="0" role="button" aria-label="Focus kb.lookup, scope LLM + Qdrant, Helpers" aria-pressed="false" data-node-kind="cloud" data-node-sublabel="scope LLM + Qdrant" data-node-context="Helpers">
+          <title>kb.lookup · scope LLM + Qdrant · Helpers</title>
+          <rect x="564" y="217" width="132" height="52" rx="6" class="c-mask"/>
+          <rect x="564" y="217" width="132" height="52" rx="6" class="c-cloud" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="cloud" class="semantic-sigil s-cloud" transform="translate(570 223) scale(0.6875)">
+            <path d="M4.3 12.5h7.3a2.4 2.4 0 0 0 .2-4.8 4 4 0 0 0-7.5-1.3A3.1 3.1 0 0 0 4.3 12.5Z"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="982.4" y="241" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">save_transcript</text>
-          <text data-detail="context" x="982.4" y="258" class="t-muted" font-size="8" text-anchor="middle">out/&lt;session_id&gt;.json</text>
+          <text data-node-label="" data-detail-anchor="" x="630" y="238" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">kb.lookup</text>
+          <text data-detail="context" x="630" y="255" class="t-muted" font-size="8" text-anchor="middle">scope LLM + Qdrant</text>
         </g>
 
-        <g id="node-timer" data-node-id="timer" data-node-label="run_timer" tabindex="0" role="button" aria-label="Focus run_timer, cap − CLOSING_SEC, Off-hot-path helpers" aria-pressed="false" data-node-kind="messagebus" data-node-sublabel="cap − CLOSING_SEC" data-node-context="Off-hot-path helpers">
-          <title>run_timer · cap − CLOSING_SEC · Off-hot-path helpers</title>
-          <rect x="308" y="346" width="132" height="52" rx="6" class="c-mask"/>
-          <rect x="308" y="346" width="132" height="52" rx="6" class="c-messagebus" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="messagebus" class="semantic-sigil s-messagebus" transform="translate(314 352) scale(0.6875)">
+        <g id="node-timer" data-node-id="timer" data-node-label="run_timer" tabindex="0" role="button" aria-label="Focus run_timer, time_up, then cap, Helpers" aria-pressed="false" data-node-kind="messagebus" data-node-sublabel="time_up, then cap" data-node-context="Helpers">
+          <title>run_timer · time_up, then cap · Helpers</title>
+          <rect x="896.4" y="217" width="132" height="52" rx="6" class="c-mask"/>
+          <rect x="896.4" y="217" width="132" height="52" rx="6" class="c-messagebus" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="messagebus" class="semantic-sigil s-messagebus" transform="translate(902.4 223) scale(0.6875)">
             <path d="M2.5 4.5h11M2.5 8h11M2.5 11.5h11"/>
             <circle cx="5" cy="4.5" r="1" class="sigil-fill"/>
             <circle cx="10.5" cy="8" r="1" class="sigil-fill"/>
             <circle cx="7" cy="11.5" r="1" class="sigil-fill"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="374" y="367" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">run_timer</text>
-          <text data-detail="context" x="374" y="384" class="t-muted" font-size="8" text-anchor="middle">cap − CLOSING_SEC</text>
+          <text data-node-label="" data-detail-anchor="" x="962.4" y="238" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">run_timer</text>
+          <text data-detail="context" x="962.4" y="255" class="t-muted" font-size="8" text-anchor="middle">time_up, then cap</text>
         </g>
 
-        <g id="node-observer" data-node-id="observer" data-node-label="Observer" tabindex="0" role="button" aria-label="Focus Observer, observe() → ObserverNote, Off-hot-path helpers" aria-pressed="false" data-node-kind="backend" data-node-sublabel="observe() → ObserverNote" data-node-context="Off-hot-path helpers">
-          <title>Observer · observe() → ObserverNote · Off-hot-path helpers</title>
-          <rect x="520.4" y="346" width="132" height="52" rx="6" class="c-mask"/>
-          <rect x="520.4" y="346" width="132" height="52" rx="6" class="c-backend" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(526.4 352) scale(0.6875)">
-            <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
-          </g>
-          <text data-node-label="" data-detail-anchor="" x="586.4" y="367" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Observer</text>
-          <text data-detail="context" x="586.4" y="384" class="t-muted" font-size="8" text-anchor="middle">observe() → ObserverNote</text>
-        </g>
-
-        <g id="node-lookup" data-node-id="lookup" data-node-label="kb.lookup" tabindex="0" role="button" aria-label="Focus kb.lookup, scope LLM ∥ Qdrant, Off-hot-path helpers" aria-pressed="false" data-node-kind="cloud" data-node-sublabel="scope LLM ∥ Qdrant" data-node-context="Off-hot-path helpers">
-          <title>kb.lookup · scope LLM ∥ Qdrant · Off-hot-path helpers</title>
-          <rect x="704" y="346" width="132" height="52" rx="6" class="c-mask"/>
-          <rect x="704" y="346" width="132" height="52" rx="6" class="c-cloud" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="cloud" class="semantic-sigil s-cloud" transform="translate(710 352) scale(0.6875)">
-            <path d="M4.3 12.5h7.3a2.4 2.4 0 0 0 .2-4.8 4 4 0 0 0-7.5-1.3A3.1 3.1 0 0 0 4.3 12.5Z"/>
-          </g>
-          <text data-node-label="" data-detail-anchor="" x="770" y="367" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">kb.lookup</text>
-          <text data-detail="context" x="770" y="384" class="t-muted" font-size="8" text-anchor="middle">scope LLM ∥ Qdrant</text>
-        </g>
-
-        <g id="node-declined" data-node-id="declined" data-node-label="Declined" tabindex="0" role="button" aria-label="Focus Declined, say DECLINED, shutdown, Forced exits" aria-pressed="false" data-node-kind="security" data-node-sublabel="say DECLINED, shutdown" data-node-context="Forced exits">
-          <title>Declined · say DECLINED, shutdown · Forced exits</title>
-          <rect x="520.4" y="472" width="132" height="52" rx="6" class="c-mask"/>
-          <rect x="520.4" y="472" width="132" height="52" rx="6" class="c-security" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="security" class="semantic-sigil s-security" transform="translate(526.4 478) scale(0.6875)">
+        <g id="node-consent" data-node-id="consent" data-node-label="ConsentTask" tabindex="0" role="button" aria-label="Focus ConsentTask, AgentTask[bool], Voice session" aria-pressed="false" data-node-kind="security" data-node-sublabel="AgentTask[bool]" data-node-context="Voice session">
+          <title>ConsentTask · AgentTask[bool] · Voice session</title>
+          <rect x="168" y="341" width="132" height="52" rx="6" class="c-mask"/>
+          <rect x="168" y="341" width="132" height="52" rx="6" class="c-security" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="security" class="semantic-sigil s-security" transform="translate(174 347) scale(0.6875)">
             <path d="M8 2.2 13 4v3.5c0 3.1-1.8 5.4-5 6.5-3.2-1.1-5-3.4-5-6.5V4Z"/>
             <path d="m5.8 8 1.5 1.5 3-3"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="586.4" y="493" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Declined</text>
-          <text data-detail="context" x="586.4" y="510" class="t-muted" font-size="8" text-anchor="middle">say DECLINED, shutdown</text>
+          <text data-node-label="" data-detail-anchor="" x="234" y="362" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">ConsentTask</text>
+          <text data-detail="context" x="234" y="379" class="t-muted" font-size="8" text-anchor="middle">AgentTask[bool]</text>
         </g>
 
-        <g id="node-hardcap" data-node-id="hardcap" data-node-label="Hard cap" tabindex="0" role="button" aria-label="Focus Hard cap, say GOODBYE, shutdown, Forced exits" aria-pressed="false" data-node-kind="security" data-node-sublabel="say GOODBYE, shutdown" data-node-context="Forced exits">
-          <title>Hard cap · say GOODBYE, shutdown · Forced exits</title>
-          <rect x="704" y="472" width="132" height="52" rx="6" class="c-mask"/>
-          <rect x="704" y="472" width="132" height="52" rx="6" class="c-security" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="security" class="semantic-sigil s-security" transform="translate(710 478) scale(0.6875)">
+        <g id="node-interviewer" data-node-id="interviewer" data-node-label="InterviewerAgent" tabindex="0" role="button" aria-label="Focus InterviewerAgent, per-question loop, Voice session" aria-pressed="false" data-node-kind="backend" data-node-sublabel="per-question loop" data-node-context="Voice session">
+          <title>InterviewerAgent · per-question loop · Voice session</title>
+          <rect x="380.4" y="341" width="132" height="52" rx="6" class="c-mask"/>
+          <rect x="380.4" y="341" width="132" height="52" rx="6" class="c-backend" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(386.4 347) scale(0.6875)">
+            <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
+          </g>
+          <text data-node-label="" data-detail-anchor="" x="446.4" y="362" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">InterviewerAgent</text>
+          <text data-detail="context" x="446.4" y="379" class="t-muted" font-size="8" text-anchor="middle">per-question loop</text>
+        </g>
+
+        <g id="node-closing" data-node-id="closing" data-node-label="ClosingAgent" tabindex="0" role="button" aria-label="Focus ClosingAgent, candidate Q&amp;A, Voice session" aria-pressed="false" data-node-kind="backend" data-node-sublabel="candidate Q&amp;A" data-node-context="Voice session">
+          <title>ClosingAgent · candidate Q&amp;A · Voice session</title>
+          <rect x="564" y="341" width="132" height="52" rx="6" class="c-mask"/>
+          <rect x="564" y="341" width="132" height="52" rx="6" class="c-backend" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(570 347) scale(0.6875)">
+            <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
+          </g>
+          <text data-node-label="" data-detail-anchor="" x="630" y="362" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">ClosingAgent</text>
+          <text data-detail="context" x="630" y="379" class="t-muted" font-size="8" text-anchor="middle">candidate Q&amp;A</text>
+        </g>
+
+        <g id="node-transcript" data-node-id="transcript" data-node-label="Report" tabindex="0" role="button" aria-label="Focus Report, on shutdown, Voice session" aria-pressed="false" data-node-kind="database" data-node-sublabel="on shutdown" data-node-context="Voice session">
+          <title>Report · on shutdown · Voice session</title>
+          <rect x="776.4" y="341" width="132" height="52" rx="6" class="c-mask"/>
+          <rect x="776.4" y="341" width="132" height="52" rx="6" class="c-database" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(782.4 347) scale(0.6875)">
+            <ellipse cx="8" cy="4" rx="5" ry="2"/>
+            <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
+          </g>
+          <text data-node-label="" data-detail-anchor="" x="842.4" y="362" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Report</text>
+          <text data-detail="context" x="842.4" y="379" class="t-muted" font-size="8" text-anchor="middle">on shutdown</text>
+        </g>
+
+        <g id="node-rejected" data-node-id="rejected" data-node-label="Already used" tabindex="0" role="button" aria-label="Focus Already used, leave, no report, Forced exits" aria-pressed="false" data-node-kind="security" data-node-sublabel="leave, no report" data-node-context="Forced exits">
+          <title>Already used · leave, no report · Forced exits</title>
+          <rect x="59" y="465" width="110" height="52" rx="6" class="c-mask"/>
+          <rect x="59" y="465" width="110" height="52" rx="6" class="c-security" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="security" class="semantic-sigil s-security" transform="translate(65 471) scale(0.6875)">
             <path d="M8 2.2 13 4v3.5c0 3.1-1.8 5.4-5 6.5-3.2-1.1-5-3.4-5-6.5V4Z"/>
             <path d="m5.8 8 1.5 1.5 3-3"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="770" y="493" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Hard cap</text>
-          <text data-detail="context" x="770" y="510" class="t-muted" font-size="8" text-anchor="middle">say GOODBYE, shutdown</text>
+          <text data-node-label="" data-detail-anchor="" x="114" y="486" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Already used</text>
+          <text data-detail="context" x="114" y="503" class="t-muted" font-size="8" text-anchor="middle">leave, no report</text>
         </g>
 
-        <g id="node-scorer" data-node-id="scorer" data-node-label="Scorer" tabindex="0" role="button" aria-label="Focus Scorer, parallel per criterion, Post-session (CLI)" aria-pressed="false" data-node-kind="backend" data-node-sublabel="parallel per criterion" data-node-context="Post-session (CLI)">
-          <title>Scorer · parallel per criterion · Post-session (CLI)</title>
-          <rect x="916.4" y="598" width="132" height="52" rx="6" class="c-mask"/>
-          <rect x="916.4" y="598" width="132" height="52" rx="6" class="c-backend" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(922.4 604) scale(0.6875)">
-            <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
+        <g id="node-declined" data-node-id="declined" data-node-label="Declined" tabindex="0" role="button" aria-label="Focus Declined, say DECLINED, Forced exits" aria-pressed="false" data-node-kind="security" data-node-sublabel="say DECLINED" data-node-context="Forced exits">
+          <title>Declined · say DECLINED · Forced exits</title>
+          <rect x="179" y="465" width="110" height="52" rx="6" class="c-mask"/>
+          <rect x="179" y="465" width="110" height="52" rx="6" class="c-security" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="security" class="semantic-sigil s-security" transform="translate(185 471) scale(0.6875)">
+            <path d="M8 2.2 13 4v3.5c0 3.1-1.8 5.4-5 6.5-3.2-1.1-5-3.4-5-6.5V4Z"/>
+            <path d="m5.8 8 1.5 1.5 3-3"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="982.4" y="619" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Scorer</text>
-          <text data-detail="context" x="982.4" y="636" class="t-muted" font-size="8" text-anchor="middle">parallel per criterion</text>
+          <text data-node-label="" data-detail-anchor="" x="234" y="486" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Declined</text>
+          <text data-detail="context" x="234" y="503" class="t-muted" font-size="8" text-anchor="middle">say DECLINED</text>
+        </g>
+
+        <g id="node-gone" data-node-id="gone" data-node-label="Candidate gone" tabindex="0" role="button" aria-label="Focus Candidate gone, silence or no rejoin, Forced exits" aria-pressed="false" data-node-kind="security" data-node-sublabel="silence or no rejoin" data-node-context="Forced exits">
+          <title>Candidate gone · silence or no rejoin · Forced exits</title>
+          <rect x="380.4" y="465" width="132" height="52" rx="6" class="c-mask"/>
+          <rect x="380.4" y="465" width="132" height="52" rx="6" class="c-security" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="security" class="semantic-sigil s-security" transform="translate(386.4 471) scale(0.6875)">
+            <path d="M8 2.2 13 4v3.5c0 3.1-1.8 5.4-5 6.5-3.2-1.1-5-3.4-5-6.5V4Z"/>
+            <path d="m5.8 8 1.5 1.5 3-3"/>
+          </g>
+          <text data-node-label="" data-detail-anchor="" x="446.4" y="486" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Candidate gone</text>
+          <text data-detail="context" x="446.4" y="503" class="t-muted" font-size="8" text-anchor="middle">silence or no rejoin</text>
+        </g>
+
+        <g id="node-hardcap" data-node-id="hardcap" data-node-label="Hard cap" tabindex="0" role="button" aria-label="Focus Hard cap, say GOODBYE, Forced exits" aria-pressed="false" data-node-kind="security" data-node-sublabel="say GOODBYE" data-node-context="Forced exits">
+          <title>Hard cap · say GOODBYE · Forced exits</title>
+          <rect x="896.4" y="465" width="132" height="52" rx="6" class="c-mask"/>
+          <rect x="896.4" y="465" width="132" height="52" rx="6" class="c-security" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="security" class="semantic-sigil s-security" transform="translate(902.4 471) scale(0.6875)">
+            <path d="M8 2.2 13 4v3.5c0 3.1-1.8 5.4-5 6.5-3.2-1.1-5-3.4-5-6.5V4Z"/>
+            <path d="m5.8 8 1.5 1.5 3-3"/>
+          </g>
+          <text data-node-label="" data-detail-anchor="" x="962.4" y="486" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Hard cap</text>
+          <text data-detail="context" x="962.4" y="503" class="t-muted" font-size="8" text-anchor="middle">say GOODBYE</text>
         </g>
 
         <!-- Edge labels -->
-
-        <g data-detail="context" data-edge-from="interviewer" data-edge-to="lookup" data-edge-label="company Q" data-edge-key="1" data-edge-id="ask-interviewer">
-          <rect x="692.6" y="274" width="53.199999999999996" height="14" rx="3" class="c-mask"/>
-          <text x="719.2" y="284" class="t-database" font-size="8" text-anchor="middle">company Q</text>
-        </g>
-        <g data-detail="context" data-edge-from="timer" data-edge-to="hardcap" data-edge-label="cap reached" data-edge-key="2" data-edge-id="cap">
-          <rect x="540.6" y="400" width="62.8" height="14" rx="3" class="c-mask"/>
-          <text x="572" y="410" class="t-security" font-size="8" text-anchor="middle">cap reached</text>
-        </g>
-        <g data-detail="context" data-edge-from="hardcap" data-edge-to="transcript" data-edge-label="on shutdown" data-edge-key="3" data-edge-id="cap-save">
-          <rect x="874.3000000000001" y="478" width="62.8" height="14" rx="3" class="c-mask"/>
-          <text x="905.7" y="488" class="t-database" font-size="8" text-anchor="middle">on shutdown</text>
-        </g>
-        <g data-detail="context" data-edge-from="consent" data-edge-to="interviewer" data-edge-label="consent_given" data-edge-key="4" data-edge-id="consented">
-          <rect x="444" y="219" width="72.4" height="14" rx="3" class="c-mask"/>
-          <text x="480.2" y="229" class="t-backend" font-size="8" text-anchor="middle">consent_given</text>
-        </g>
-        <g data-detail="context" data-edge-from="consent" data-edge-to="declined" data-edge-label="consent_declined" data-edge-key="5" data-edge-id="declined-edge">
-          <rect x="226.79999999999998" y="478" width="86.8" height="14" rx="3" class="c-mask"/>
-          <text x="270.2" y="488" class="t-security" font-size="8" text-anchor="middle">consent_declined</text>
-        </g>
-        <g data-detail="context" data-edge-from="closing" data-edge-to="transcript" data-edge-label="end_interview" data-edge-key="6" data-edge-id="end-interview">
-          <rect x="840" y="226" width="72.4" height="14" rx="3" class="c-mask"/>
-          <text x="876.2" y="236" class="t-backend" font-size="8" text-anchor="middle">end_interview</text>
-        </g>
-        <g data-detail="context" data-edge-from="interviewer" data-edge-to="observer" data-edge-label="each answer" data-edge-key="7" data-edge-id="grade">
-          <rect x="596" y="142" width="62.8" height="14" rx="3" class="c-mask"/>
-          <text x="627.4" y="152" class="t-database" font-size="8" text-anchor="middle">each answer</text>
-        </g>
-        <g data-detail="context" data-edge-from="interviewer" data-edge-to="closing" data-edge-label="handoff" data-edge-key="8" data-edge-id="handoff-closing">
-          <rect x="697.4000000000001" y="142" width="43.6" height="14" rx="3" class="c-mask"/>
-          <text x="719.2" y="152" class="t-backend" font-size="8" text-anchor="middle">handoff</text>
-        </g>
-        <g data-detail="context" data-edge-from="planner" data-edge-to="consent" data-edge-label="plan.json" data-edge-key="9" data-edge-id="plan-json">
-          <rect x="320.4" y="100" width="53.199999999999996" height="14" rx="3" class="c-mask"/>
-          <text x="347" y="110" class="t-backend" font-size="8" text-anchor="middle">plan.json</text>
+        <g data-detail="context" data-edge-from="closing" data-edge-to="lookup" data-edge-label="company Q" data-edge-key="0" data-edge-id="ask-closing">
+          <rect x="603.4" y="321" width="53.199999999999996" height="14" rx="3" class="c-mask"/>
+          <text x="630" y="331" class="t-database" font-size="8" text-anchor="middle">company Q</text>
         </g>
 
-        <g data-detail="context" data-edge-from="interviewer" data-edge-to="timer" data-edge-label="spawn" data-edge-key="11" data-edge-id="spawn-timer">
-          <rect x="422.2" y="274" width="34" height="14" rx="3" class="c-mask"/>
-          <text x="439.2" y="284" class="t-database" font-size="8" text-anchor="middle">spawn</text>
+        <g data-detail="context" data-edge-from="consent" data-edge-to="interviewer" data-edge-label="consent_given" data-edge-key="2" data-edge-id="consented">
+          <rect x="304" y="347" width="72.4" height="14" rx="3" class="c-mask"/>
+          <text x="340.2" y="357" class="t-backend" font-size="8" text-anchor="middle">consent_given</text>
+        </g>
+
+        <g data-detail="context" data-edge-from="closing" data-edge-to="transcript" data-edge-label="end_interview" data-edge-key="4" data-edge-id="end-interview">
+          <rect x="700" y="347" width="72.4" height="14" rx="3" class="c-mask"/>
+          <text x="736.2" y="357" class="t-backend" font-size="8" text-anchor="middle">end_interview</text>
+        </g>
+
+        <g data-detail="context" data-edge-from="interviewer" data-edge-to="observer" data-edge-label="each answer" data-edge-key="6" data-edge-id="grade">
+          <rect x="415" y="321" width="62.8" height="14" rx="3" class="c-mask"/>
+          <text x="446.4" y="331" class="t-database" font-size="8" text-anchor="middle">each answer</text>
+        </g>
+        <g data-detail="context" data-edge-from="interviewer" data-edge-to="closing" data-edge-label="handoff" data-edge-key="7" data-edge-id="handoff-closing">
+          <rect x="516.4000000000001" y="347" width="43.6" height="14" rx="3" class="c-mask"/>
+          <text x="538.2" y="357" class="t-backend" font-size="8" text-anchor="middle">handoff</text>
+        </g>
+        <g data-detail="context" data-edge-from="start" data-edge-to="consent" data-edge-label="plan" data-edge-key="8" data-edge-id="plan">
+          <rect x="192" y="99" width="30" height="14" rx="3" class="c-mask"/>
+          <text x="207" y="109" class="t-backend" font-size="8" text-anchor="middle">plan</text>
+        </g>
+        <g data-detail="context" data-edge-from="start" data-edge-to="rejected" data-edge-label="409" data-edge-key="9" data-edge-id="rejected-edge">
+          <rect x="24.5" y="471" width="30" height="14" rx="3" class="c-mask"/>
+          <text x="39.5" y="481" class="t-security" font-size="8" text-anchor="middle">409</text>
+        </g>
+        <g data-detail="context" data-edge-from="transcript" data-edge-to="scorer" data-edge-label="results" data-edge-key="10" data-edge-id="score">
+          <rect x="820.6" y="321" width="43.6" height="14" rx="3" class="c-mask"/>
+          <text x="842.4" y="331" class="t-backend" font-size="8" text-anchor="middle">results</text>
         </g>
 
         <!-- Legend -->
         <g data-legend="" data-legend-bridge="">
-          <text x="20" y="686" class="t-primary" font-size="12" font-weight="650">Legend</text>
-          <g data-legend-semantic-kind="backend" data-legend-kind="backend" data-legend-label="Agent logic" data-legend-x="20" data-legend-baseline="706" data-legend-width="91">
-            <rect x="20" y="698" width="14" height="9" rx="2" class="c-backend" stroke-width="1"/>
-            <text x="42" y="706" class="t-muted" font-size="7.5" font-weight="500">Agent logic</text>
+          <text x="20" y="552" class="t-primary" font-size="12" font-weight="650">Legend</text>
+          <g data-legend-semantic-kind="backend" data-legend-kind="backend" data-legend-label="Agent logic" data-legend-x="20" data-legend-baseline="572" data-legend-width="91">
+            <rect x="20" y="564" width="14" height="9" rx="2" class="c-backend" stroke-width="1"/>
+            <text x="42" y="572" class="t-muted" font-size="7.5" font-weight="500">Agent logic</text>
           </g>
-          <g data-legend-semantic-kind="security" data-legend-kind="security" data-legend-label="Policy" data-legend-x="118" data-legend-baseline="706" data-legend-width="70">
-            <rect x="118" y="698" width="14" height="9" rx="2" class="c-security" stroke-width="1"/>
-            <text x="140" y="706" class="t-muted" font-size="7.5" font-weight="500">Policy</text>
+          <g data-legend-semantic-kind="security" data-legend-kind="security" data-legend-label="Policy" data-legend-x="118" data-legend-baseline="572" data-legend-width="70">
+            <rect x="118" y="564" width="14" height="9" rx="2" class="c-security" stroke-width="1"/>
+            <text x="140" y="572" class="t-muted" font-size="7.5" font-weight="500">Policy</text>
           </g>
-          <g data-legend-semantic-kind="messagebus" data-legend-kind="messagebus" data-legend-label="Tool action" data-legend-x="195" data-legend-baseline="706" data-legend-width="91">
-            <rect x="195" y="698" width="14" height="9" rx="2" class="c-messagebus" stroke-width="1"/>
-            <text x="217" y="706" class="t-muted" font-size="7.5" font-weight="500">Tool action</text>
+          <g data-legend-semantic-kind="messagebus" data-legend-kind="messagebus" data-legend-label="Tool action" data-legend-x="195" data-legend-baseline="572" data-legend-width="91">
+            <rect x="195" y="564" width="14" height="9" rx="2" class="c-messagebus" stroke-width="1"/>
+            <text x="217" y="572" class="t-muted" font-size="7.5" font-weight="500">Tool action</text>
           </g>
-          <g data-legend-semantic-kind="database" data-legend-kind="database" data-legend-label="Context / trace" data-legend-x="293" data-legend-baseline="706" data-legend-width="109">
-            <rect x="293" y="698" width="14" height="9" rx="2" class="c-database" stroke-width="1"/>
-            <text x="315" y="706" class="t-muted" font-size="7.5" font-weight="500">Context / trace</text>
+          <g data-legend-semantic-kind="database" data-legend-kind="database" data-legend-label="Context / trace" data-legend-x="293" data-legend-baseline="572" data-legend-width="109">
+            <rect x="293" y="564" width="14" height="9" rx="2" class="c-database" stroke-width="1"/>
+            <text x="315" y="572" class="t-muted" font-size="7.5" font-weight="500">Context / trace</text>
           </g>
-          <g data-legend-semantic-kind="cloud" data-legend-kind="cloud" data-legend-label="Cloud service" data-legend-x="409" data-legend-baseline="706" data-legend-width="100">
-            <rect x="409" y="698" width="14" height="9" rx="2" class="c-cloud" stroke-width="1"/>
-            <text x="431" y="706" class="t-muted" font-size="7.5" font-weight="500">Cloud service</text>
+          <g data-legend-semantic-kind="cloud" data-legend-kind="cloud" data-legend-label="Cloud service" data-legend-x="409" data-legend-baseline="572" data-legend-width="100">
+            <rect x="409" y="564" width="14" height="9" rx="2" class="c-cloud" stroke-width="1"/>
+            <text x="431" y="572" class="t-muted" font-size="7.5" font-weight="500">Cloud service</text>
           </g>
         </g>
       </svg>
@@ -5594,9 +5595,10 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           <h3>Handoffs</h3>
         </div>
         <ul>
+          <li>&bull; entrypoint claims the session with POST /internal/sessions/{id}/start, which returns the plan</li>
           <li>&bull; InterviewerAgent.on_enter awaits ConsentTask before question 1</li>
-          <li>&bull; advance_to_next_question returns ClosingAgent on the last question or when time_up is set</li>
-          <li>&bull; ClosingAgent.end_interview drains TTS, then shutdown saves the transcript</li>
+          <li>&bull; advance_to_next_question (or candidate_wants_to_end) hands off to ClosingAgent</li>
+          <li>&bull; On shutdown the agent saves out/&lt;session_id&gt;.json and POSTs /complete; the API scores in the background</li>
         </ul>
       </div>
 
@@ -5606,9 +5608,9 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           <h3>Helpers</h3>
         </div>
         <ul>
-          <li>&bull; Observer runs per candidate turn; its note refreshes the NEXT reply&#39;s instructions</li>
-          <li>&bull; lookup_company_info fails closed to NO_ANSWER; OUT_OF_SCOPE wins over ANSWER</li>
-          <li>&bull; run_timer sets time_up at cap − 90 s, forces goodbye at cap</li>
+          <li>&bull; Observer grades each answer; a newer turn on the same question cancels the older call</li>
+          <li>&bull; lookup_company_info (InterviewerAgent and ClosingAgent) fails closed to NO_ANSWER; OUT_OF_SCOPE wins over ANSWER</li>
+          <li>&bull; run_timer starts at consent_given: sets time_up at cap - 90 s, forces goodbye at cap</li>
         </ul>
       </div>
 
@@ -5618,8 +5620,10 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           <h3>Exits</h3>
         </div>
         <ul>
-          <li>&bull; Declined consent: nothing is saved</li>
-          <li>&bull; Hard cap interrupts, says GOODBYE, shuts down; transcript still saved</li>
+          <li>&bull; 409 from /start: interview already started elsewhere, leave without reporting</li>
+          <li>&bull; Declined consent: reports consented=false, nothing is kept</li>
+          <li>&bull; Candidate gone: 3 unanswered check-ins after 7 s silences, or no rejoin within 120 s</li>
+          <li>&bull; Every exit after the claim runs the same shutdown report</li>
         </ul>
       </div>
     </div>
