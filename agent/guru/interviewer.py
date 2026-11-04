@@ -40,6 +40,9 @@ GOODBYE = "We've reached the end of our time. Thank you for speaking with me tod
 DECLINED = "No problem at all. Thank you for your time, and goodbye!"
 STILL_THERE = "Are you still there?"
 SILENCE_GOODBYE = "Seems like there's a technical issue, try again later."
+# Building an SSL context takes ~0.5 s of CPU; httpx builds one per client, which stalled the
+# agent loop at join and at the end. Build it once at import, before any job runs.
+_SSL = httpx.create_ssl_context()  # same defaults as httpx (certifi, SSL_CERT_FILE), built once
 REJOINED = "The candidate just reconnected after losing the connection. Welcome them back in one short sentence, then repeat your last question."
 NO_ANSWER = {"status": "NO_ANSWER", "chunks": [], "source_urls": []}
 
@@ -72,6 +75,7 @@ class State:
     llm_cancelled: int = field(default=0, repr=False)  # preemptive generations thrown away (§3.5.1)
     silence_prompts: int = 0  # "Are you still there?" asked since the candidate last said something
     timer: asyncio.Task | None = field(default=None, repr=False)
+    observing: dict[int, asyncio.Task] = field(default_factory=dict, repr=False)  # running Observer call per question
 
     @property
     def question(self):
@@ -331,6 +335,17 @@ async def observe(session: AgentSession, agent: InterviewerAgent, answer: str) -
         await agent.refresh()
 
 
+def observe_latest(session: AgentSession, agent: InterviewerAgent) -> None:
+    """One Observer call per question at a time. A pause mid-answer splits it into two turns; the
+    newer call grades the full text, so the older one is cancelled (its note would be stale)."""
+    s = agent.s
+    prev = s.observing.get(s.idx)
+    if prev and not prev.done():
+        prev.cancel()
+        jlog("Observer call superseded by a newer turn", function_name="observe_latest", output={"question": s.idx + 1})
+    s.observing[s.idx] = spawn(observe(session, agent, "\n".join(s.answers)))
+
+
 def build_llm() -> llm.LLM:
     if not config.OPENROUTER_API_KEY:  # same check with_openrouter() made; avoids falling back to OPENAI_API_KEY
         raise ValueError("OPENROUTER_API_KEY is required")
@@ -402,7 +417,7 @@ async def load_plan(metadata: str | None, room: str) -> Plan | None:
     if not is_session_id(metadata):
         jlog("No session in dispatch metadata: using the fixture plan", function_name="load_plan", output={"path": str(config.PLAN_PATH)})
         return Plan.model_validate_json(config.PLAN_PATH.read_text(encoding="utf-8"))
-    async with httpx.AsyncClient(timeout=10) as client:
+    async with httpx.AsyncClient(timeout=10, verify=_SSL) as client:
         r = await client.post(
             f"{config.API_URL}/internal/sessions/{metadata}/start",
             json={"room": room},
@@ -450,7 +465,7 @@ async def post_results(s: State, out: dict | None) -> None:
         usage = {k: out[k] for k in ("latency", "llm_calls", "llm_cancelled", "usage")}
         body = {"consented": True, "turns": out["turns"], "notes": out["notes"], "usage": usage,
                 "duration_sec": out["duration_sec"]}
-    async with httpx.AsyncClient(timeout=15) as client:
+    async with httpx.AsyncClient(timeout=15, verify=_SSL) as client:
         r = await client.post(
             f"{config.API_URL}/internal/sessions/{s.session_id}/complete",
             json=body,
@@ -566,7 +581,7 @@ async def entrypoint(ctx: JobContext) -> None:
             return  # consent/closing turns are not graded
         s.answers.append(item.text_content or "")
         spawn(agent.refresh())  # follow-up count for the next reply
-        spawn(observe(session, agent, "\n".join(s.answers)))
+        observe_latest(session, agent)
 
     @session.on("close")
     def _closed(ev):
@@ -601,7 +616,8 @@ async def entrypoint(ctx: JobContext) -> None:
     @ctx.room.on("participant_disconnected")
     def _left(p: rtc.RemoteParticipant):
         nonlocal grace
-        if ctx.room.remote_participants or grace:
+        # ROOM_DELETED: we (or LiveKit) deleted the room, so there's nothing to rejoin.
+        if ctx.room.remote_participants or grace or p.disconnect_reason == rtc.DisconnectReason.ROOM_DELETED:
             return
         jlog(
             "Candidate disconnected: waiting for a rejoin",

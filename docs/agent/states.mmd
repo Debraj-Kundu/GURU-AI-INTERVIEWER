@@ -1,6 +1,8 @@
 stateDiagram-v2
   [*] --> Prewarmed : prewarm loads VAD, LLM chain, BM25
-  Prewarmed --> Consent : entrypoint, session.start, InterviewerAgent.on_enter awaits ConsentTask
+  Prewarmed --> Rejected : POST /internal/.../start returns 409
+  Rejected --> [*] : delete room, report nothing
+  Prewarmed --> Consent : start claims the session, session.start, ConsentTask
 
   Consent --> Declined : consent_declined
   Declined --> Ended : say DECLINED, shutdown
@@ -15,12 +17,12 @@ stateDiagram-v2
     Decide --> FollowUp : LLM asks follow-up, allowed while answers below 2
     Decide --> Advance : LLM calls advance_to_next_question
     FollowUp --> Listening : follow-up spoken
-    Advance --> Asking : more questions, idx += 1, answers=[], note cleared, context truncated
+    Advance --> Asking : more questions, idx += 1, answers=[], note cleared
     Advance --> [*] : last question or time_up
   }
 
-  Interviewing --> Closing : handoff to ClosingAgent
-  Interviewing --> Ended : hard cap or tab closed
+  Interviewing --> Closing : handoff to ClosingAgent (or candidate_wants_to_end)
+  Interviewing --> Ended : hard cap, 3 unanswered check-ins, no rejoin in 120 s
 
   state Closing {
     [*] --> InviteQuestions : on_enter asks for questions
@@ -30,19 +32,20 @@ stateDiagram-v2
   }
 
   Closing --> Ended : shutdown drain=true
-  Closing --> Ended : hard cap or tab closed
+  Closing --> Ended : hard cap, check-ins, no rejoin
 
-  Ended --> Saved : shutdown callback, save_transcript if consented
-  Ended --> [*] : not consented, nothing saved
-  Saved --> [*]
+  Ended --> Reported : room deleted, save_transcript if consented, POST /internal/.../complete
+  Reported --> [*]
 
   note right of Interviewing
-    Prompt forces advance when:
-    answers reach MAX_FOLLOW_UPS (2),
-    question over its time budget,
-    or time_up from the timer.
-    Observer note lands in State.note
-    and shapes the NEXT reply.
+    Prompt forces advance when answers reach
+    MAX_FOLLOW_UPS (2), the question is over
+    its time budget, or time_up is set.
+    The Observer note shapes the NEXT reply.
+    7 s of silence: "Are you still there?" (max 3),
+    then "Seems like there's a technical issue".
+    Candidate drops: wait 120 s for a rejoin,
+    then welcome back and repeat the question.
   end note
 
   note right of Closing

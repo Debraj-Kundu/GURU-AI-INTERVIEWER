@@ -111,3 +111,40 @@ def test_static_prompt_prefix_is_stable():
     b = interviewer_instructions(s)
     prefix = a.split("Current question")[0]
     assert b.startswith(prefix)
+
+
+def test_split_answer_is_observed_once(monkeypatch):
+    import asyncio
+    from types import SimpleNamespace
+
+    from guru import interviewer
+
+    graded, cancelled = [], []
+
+    async def fake_observe(session, agent, answer):
+        try:
+            await asyncio.sleep(0.05)
+            graded.append(answer)
+        except asyncio.CancelledError:
+            cancelled.append(answer)
+            raise
+
+    monkeypatch.setattr(interviewer, "observe", fake_observe)
+    plan = Plan(job=JOB, plan=InterviewPlan(questions=[q("Q1", 120), q("Q2", 120)], allowed_tech_stack=[]))
+    s = State(plan=plan, session_id="t")
+    agent = SimpleNamespace(s=s)
+
+    async def run():
+        s.answers = ["part one"]
+        interviewer.observe_latest(None, agent)  # type: ignore[arg-type]
+        await asyncio.sleep(0)  # the first call is in flight
+        s.answers.append("part two")  # a pause split the answer into a second turn
+        interviewer.observe_latest(None, agent)  # type: ignore[arg-type]
+        await asyncio.sleep(0)
+        s.idx, s.answers = 1, ["next answer"]  # a new question must not cancel the last one's call
+        interviewer.observe_latest(None, agent)  # type: ignore[arg-type]
+        await asyncio.gather(*s.observing.values(), return_exceptions=True)
+
+    asyncio.run(run())
+    assert cancelled == ["part one"]
+    assert graded == ["part one\npart two", "next answer"]
