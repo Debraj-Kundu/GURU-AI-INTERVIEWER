@@ -46,7 +46,7 @@ export function InterviewApp({ id }: { id: string }) {
 
   return (
     <AgentSessionProvider session={session}>
-      <main className="grid min-h-svh place-items-center p-4">
+      <main className="bg-grid grid min-h-svh place-items-center p-4">
         {error && <Message title="Can’t open this interview" body={error} />}
         {!error && !info && <p className="text-muted-foreground text-sm">Loading…</p>}
         {info && <Flow info={info} startedAt={startedAt} />}
@@ -67,7 +67,7 @@ function Message({
 }) {
   return (
     <section className="flex max-w-md flex-col items-center gap-2 text-center">
-      <h1 className="text-xl font-semibold">{title}</h1>
+      <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
       <p className="text-muted-foreground">{body}</p>
       {children}
     </section>
@@ -76,7 +76,7 @@ function Message({
 
 /** done: the agent finished (it deletes the room). no-agent: no interviewer joined in time.
  *  dropped: the candidate's connection ended; they can rejoin while the agent waits (2 min). */
-type Outcome = 'done' | 'no-agent' | 'dropped' | null;
+type Outcome = 'done' | 'no-agent' | 'dropped' | 'expired' | null;
 
 function Flow({ info, startedAt }: { info: InterviewInfo; startedAt: string | null }) {
   const { isConnected, start, end, room } = useSessionContext();
@@ -87,7 +87,11 @@ function Flow({ info, startedAt }: { info: InterviewInfo; startedAt: string | nu
   const [starting, setStarting] = useState(false);
   const [startError, setStartError] = useState('');
   const [outcome, setOutcome] = useState<Outcome>(
-    info.status === 'completed' || info.status === 'declined' ? 'done' : null
+    info.status === 'completed' || info.status === 'declined'
+      ? 'done'
+      : info.expired
+        ? 'expired'
+        : null
   );
 
   // Why the room closed decides what the candidate sees. The first reason wins.
@@ -117,6 +121,7 @@ function Flow({ info, startedAt }: { info: InterviewInfo; startedAt: string | nu
       setOutcome(null);
     } catch (e) {
       if (e instanceof ApiError && e.status === 409) setOutcome('done');
+      else if (e instanceof ApiError && e.status === 410) setOutcome('expired');
       else setStartError((e as Error).message || 'Couldn’t start the interview.');
     }
     setStarting(false);
@@ -127,6 +132,14 @@ function Flow({ info, startedAt }: { info: InterviewInfo; startedAt: string | nu
       <Message
         title="Thank you"
         body="Your interview is complete. The recruiter will be in touch about next steps. You can close this tab."
+      />
+    );
+
+  if (outcome === 'expired')
+    return (
+      <Message
+        title="This link has expired"
+        body="Interview links are only valid for a short time. Ask the recruiter to send you a new one."
       />
     );
 
@@ -172,10 +185,15 @@ function Flow({ info, startedAt }: { info: InterviewInfo; startedAt: string | nu
 
   const ready = checked.every(Boolean) && micOk;
   return (
-    <section className="flex w-full max-w-lg flex-col gap-6 rounded-2xl border p-6 shadow-sm">
+    <section className="bg-card animate-in fade-in slide-in-from-bottom-2 flex w-full max-w-lg flex-col gap-6 rounded-2xl border p-7 shadow-[0_15px_40px_-10px_#9564dd33] duration-500 motion-reduce:animate-none">
       <div>
-        <p className="text-muted-foreground text-sm">{info.company_name}</p>
-        <h1 className="text-2xl font-semibold">{info.job_title}</h1>
+        <p className="text-muted-foreground flex items-center gap-2 font-mono text-[11px] tracking-widest uppercase">
+          <span className="bg-primary inline-block size-1.5 rounded-full" />
+          {info.company_name}
+        </p>
+        <h1 className="text-brand mt-2 w-fit text-3xl font-semibold tracking-[-0.04em]">
+          {info.job_title}
+        </h1>
         <p className="text-muted-foreground mt-1 text-sm">
           {info.candidate_name ? `Hi ${info.candidate_name}. ` : ''}A voice interview of about{' '}
           {Math.round(info.max_duration_sec / 60)} minutes. Find a quiet place and use headphones if
@@ -184,12 +202,14 @@ function Flow({ info, startedAt }: { info: InterviewInfo; startedAt: string | nu
       </div>
 
       <fieldset className="flex flex-col gap-3">
-        <legend className="mb-2 text-sm font-medium">Before you start</legend>
+        <legend className="text-muted-foreground mb-2 font-mono text-[11px] tracking-widest uppercase">
+          Before you start
+        </legend>
         {CONSENTS.map((c, i) => (
           <label key={i} className="flex items-start gap-3 text-sm">
             <input
               type="checkbox"
-              className="mt-0.5 size-4"
+              className="accent-primary mt-0.5 size-4"
               checked={checked[i]}
               onChange={(e) => setChecked(checked.map((v, k) => (k === i ? e.target.checked : v)))}
             />

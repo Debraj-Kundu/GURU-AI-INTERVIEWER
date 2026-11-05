@@ -13,31 +13,26 @@ import {
 } from '@/components/guru/job-form';
 import { KnowledgeBasePanel } from '@/components/guru/kb-panel';
 import { PlanPanel } from '@/components/guru/plan-panel';
-import { ErrorText, Tabs } from '@/components/guru/ui';
+import { RolesSidebar } from '@/components/guru/roles-sidebar';
+import { Card, ErrorText, PageHeader, Tabs } from '@/components/guru/ui';
 import { Button } from '@/components/ui/button';
 import { type Job, type JobInput, type PlanState, api } from '@/lib/api';
 
-type TabId = 'details' | 'questions' | 'criteria' | 'kb' | 'plan' | 'interviews';
+type TabId = 'details' | 'questions' | 'criteria' | 'kb' | 'plan';
 
-const toInput = ({
+const toInput = ({ title, jd_text, max_duration_sec, questions, criteria }: Job): JobInput => ({
   title,
-  company_name,
-  jd_text,
-  max_duration_sec,
-  questions,
-  criteria,
-}: Job): JobInput => ({
-  title,
-  company_name,
   jd_text,
   max_duration_sec,
   questions,
   criteria,
 });
 
-/** `jobId` undefined = the "new job" page (only the editable tabs, Create instead of Save). */
-export function JobWorkspace({ jobId }: { jobId?: string }) {
+/** A role's page. Without `jobId` it's the "new role" page for `companyId` (Create instead of Save,
+ *  no plan yet). Roles share their company's name and knowledge base. */
+export function JobWorkspace({ jobId, companyId: newFor }: { jobId?: string; companyId?: string }) {
   const router = useRouter();
+  const [companyId, setCompanyId] = useState(newFor);
   const [saved, setSaved] = useState<JobInput | null>(jobId ? null : EMPTY_JOB);
   const [form, setForm] = useState<JobInput>(EMPTY_JOB);
   const [tab, setTab] = useState<TabId>('details');
@@ -49,6 +44,7 @@ export function JobWorkspace({ jobId }: { jobId?: string }) {
     if (!jobId) return;
     api.getJob(jobId).then(
       (j) => {
+        setCompanyId(j.company_id);
         setSaved(toInput(j));
         setForm(toInput(j));
       },
@@ -67,7 +63,7 @@ export function JobWorkspace({ jobId }: { jobId?: string }) {
     try {
       const body = normalizeJob(form);
       if (!jobId) {
-        const job = await api.createJob(body);
+        const job = await api.createJob(companyId!, body);
         router.push(`/jobs/${job.id}`);
         return;
       }
@@ -83,61 +79,68 @@ export function JobWorkspace({ jobId }: { jobId?: string }) {
   }
 
   async function remove() {
-    if (!jobId || !confirm('Delete this job, its sources, plan, and interviews?')) return;
+    if (!jobId || !confirm('Delete this role, its plan, and its interviews?')) return;
     try {
       await api.deleteJob(jobId);
-      router.push('/jobs');
+      router.push(`/companies/${companyId}`);
     } catch (e) {
       setError((e as Error).message);
     }
   }
 
-  if (!saved) return <ErrorText>{error}</ErrorText>;
+  if (!saved || !companyId) return <ErrorText>{error}</ErrorText>;
 
   const tabs: { id: TabId; label: string }[] = [
     { id: 'details', label: 'Details' },
     { id: 'questions', label: `Questions (${form.questions.length})` },
     { id: 'criteria', label: `Criteria (${form.criteria.length})` },
-    ...(jobId
-      ? ([
-          { id: 'kb', label: 'Knowledge base' },
-          { id: 'plan', label: 'Plan' },
-          { id: 'interviews', label: 'Interviews' },
-        ] as const)
-      : []),
+    { id: 'kb', label: 'Knowledge base' },
+    ...(jobId ? ([{ id: 'plan', label: 'Plan' }] as const) : []),
   ];
   const canCreateInterview = !dirty && plan?.status === 'ready' && !plan.stale;
 
   return (
-    <div className="flex flex-col gap-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold">{saved.title || 'New job'}</h1>
-          {saved.company_name && (
-            <p className="text-muted-foreground text-sm">{saved.company_name}</p>
-          )}
-        </div>
-        <div className="flex gap-2">
-          {jobId && (
-            <Button variant="ghost" onClick={remove}>
-              Delete
-            </Button>
-          )}
-          <Button onClick={save} disabled={saving || (!!jobId && !dirty)}>
-            {saving ? 'Saving…' : jobId ? (dirty ? 'Save changes' : 'Saved') : 'Create job'}
-          </Button>
-        </div>
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-8 lg:grid-cols-[200px_minmax(0,1fr)_340px] lg:gap-0">
+      <aside className="lg:sticky lg:top-24 lg:self-start lg:pr-6">
+        <RolesSidebar companyId={companyId} activeId={jobId} refresh={saved} />
+      </aside>
+      <div className="flex min-w-0 flex-col gap-5 lg:border-x lg:px-8">
+        <PageHeader
+          eyebrow={jobId ? 'Role' : 'New role'}
+          title={saved.title || 'New role'}
+          actions={
+            <>
+              {jobId && (
+                <Button variant="ghost" onClick={remove}>
+                  Delete
+                </Button>
+              )}
+              <Button onClick={save} disabled={saving || (!!jobId && !dirty)}>
+                {saving ? 'Saving…' : jobId ? (dirty ? 'Save changes' : 'Saved') : 'Create role'}
+              </Button>
+            </>
+          }
+        />
+        <ErrorText>{error}</ErrorText>
+        <Tabs tabs={tabs} value={tab} onChange={setTab} />
+        {tab === 'details' && <DetailsSection value={form} onChange={setForm} />}
+        {tab === 'questions' && <QuestionsSection value={form} onChange={setForm} />}
+        {tab === 'criteria' && <CriteriaSection value={form} onChange={setForm} />}
+        {tab === 'kb' && <KnowledgeBasePanel companyId={companyId} />}
+        {jobId && tab === 'plan' && (
+          <PlanPanel jobId={jobId} dirty={dirty} onPlanChange={setPlan} />
+        )}
       </div>
-      <ErrorText>{error}</ErrorText>
-      <Tabs tabs={tabs} value={tab} onChange={setTab} />
-      {tab === 'details' && <DetailsSection value={form} onChange={setForm} />}
-      {tab === 'questions' && <QuestionsSection value={form} onChange={setForm} />}
-      {tab === 'criteria' && <CriteriaSection value={form} onChange={setForm} />}
-      {jobId && tab === 'kb' && <KnowledgeBasePanel jobId={jobId} />}
-      {jobId && tab === 'plan' && <PlanPanel jobId={jobId} dirty={dirty} onPlanChange={setPlan} />}
-      {jobId && tab === 'interviews' && (
-        <InterviewsPanel jobId={jobId} canCreate={canCreateInterview} />
-      )}
+      <aside className="flex flex-col gap-4 lg:pl-6" aria-label="Interviews">
+        <h2 className="text-lg font-semibold tracking-tight">Interviews</h2>
+        {jobId ? (
+          <InterviewsPanel jobId={jobId} canCreate={canCreateInterview} />
+        ) : (
+          <Card className="text-muted-foreground p-4 text-sm">
+            Create the role to invite candidates.
+          </Card>
+        )}
+      </aside>
     </div>
   );
 }

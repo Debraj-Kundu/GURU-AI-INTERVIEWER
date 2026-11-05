@@ -72,11 +72,17 @@ def qdrant() -> AsyncQdrantClient:
     return AsyncQdrantClient(url=config.QDRANT_URL, api_key=config.QDRANT_API_KEY, timeout=5)
 
 
+def kb_id(job: Job) -> str:
+    """Knowledge bases belong to a company and are shared by its roles."""
+    return job.company_id or job.id
+
+
 async def ensure_collection() -> None:
     q = qdrant()
     if await q.collection_exists(config.QDRANT_COLLECTION):
         # Added after the first collections were made; creating an existing index is a no-op.
         await q.create_payload_index(config.QDRANT_COLLECTION, "source_id", models.PayloadSchemaType.KEYWORD)
+        await q.create_payload_index(config.QDRANT_COLLECTION, "kb_id", models.PayloadSchemaType.KEYWORD)
         return
     await q.create_collection(
         config.QDRANT_COLLECTION,
@@ -89,11 +95,11 @@ async def ensure_collection() -> None:
         "org_id",
         models.KeywordIndexParams(type=models.KeywordIndexType.KEYWORD, is_tenant=True),
     )
-    await q.create_payload_index(config.QDRANT_COLLECTION, "job_id", models.PayloadSchemaType.KEYWORD)
+    await q.create_payload_index(config.QDRANT_COLLECTION, "kb_id", models.PayloadSchemaType.KEYWORD)
     await q.create_payload_index(config.QDRANT_COLLECTION, "source_id", models.PayloadSchemaType.KEYWORD)
 
 
-async def upsert(job: Job, source: str, chunks: list[str], source_id: str = "") -> None:
+async def upsert(org_id: str, kb: str, source: str, chunks: list[str], source_id: str = "") -> None:
     """`source` is what answers cite (file name or URL); `source_id` (backend uploads) keys deletes."""
     dense: list[list[float]] = []
     for i in range(0, len(chunks), EMBED_BATCH):  # a 20-page PDF can be 100+ chunks
@@ -102,23 +108,24 @@ async def upsert(job: Job, source: str, chunks: list[str], source_id: str = "") 
     key = source_id or source
     points = [
         models.PointStruct(
-            id=str(uuid.uuid5(uuid.NAMESPACE_URL, f"{job.id}/{key}/{i}")),  # idempotent re-seed
+            id=str(uuid.uuid5(uuid.NAMESPACE_URL, f"{kb}/{key}/{i}")),  # idempotent re-seed
             vector={"dense": d, "bm25": models.SparseVector(indices=s.indices.tolist(), values=s.values.tolist())},
-            payload={"org_id": job.org_id, "job_id": job.id, "source": source, "source_id": key, "text": c},
+            payload={"org_id": org_id, "kb_id": kb, "source": source, "source_id": key, "text": c},
         )
         for i, (c, d, s) in enumerate(zip(chunks, dense, sparse))
     ]
     await qdrant().upsert(config.QDRANT_COLLECTION, points)
 
 
-async def delete_source(job: Job, source_id: str) -> None:
-    """Remove every chunk of one source (re-ingest or delete from the UI)."""
+async def delete_source(org_id: str, source_id: str) -> None:
+    """Remove every chunk of one source (re-ingest or delete from the UI). Backend source ids are
+    unique, so this also clears chunks stored before knowledge bases moved to companies."""
     await qdrant().delete(
         config.QDRANT_COLLECTION,
         points_selector=models.FilterSelector(
             filter=models.Filter(
                 must=[
-                    models.FieldCondition(key="job_id", match=models.MatchValue(value=job.id)),
+                    models.FieldCondition(key="org_id", match=models.MatchValue(value=org_id)),
                     models.FieldCondition(key="source_id", match=models.MatchValue(value=source_id)),
                 ]
             )
@@ -127,7 +134,7 @@ async def delete_source(job: Job, source_id: str) -> None:
 
 
 async def search(job: Job, question: str) -> tuple[float, list[dict]]:
-    """Hybrid (dense + BM25, RRF-fused) search scoped to one job. Also returns the best dense
+    """Hybrid (dense + BM25, RRF-fused) search scoped to the job's company. Also returns the best dense
     cosine score, because RRF scores are rank-based and useless as a relevance threshold."""
     [dense] = await llm.embed([question])
     [s] = list(bm25().query_embed(question))
@@ -135,7 +142,7 @@ async def search(job: Job, question: str) -> tuple[float, list[dict]]:
     scope = models.Filter(
         must=[
             models.FieldCondition(key="org_id", match=models.MatchValue(value=job.org_id)),
-            models.FieldCondition(key="job_id", match=models.MatchValue(value=job.id)),
+            models.FieldCondition(key="kb_id", match=models.MatchValue(value=kb_id(job))),
         ]
     )
     k = config.RAG_TOP_K
@@ -190,7 +197,7 @@ async def seed(job: Job, kb_dir: Path) -> None:
         if path.suffix.lower() not in (".md", ".txt"):
             continue
         chunks = chunk(path.read_text(encoding="utf-8"), title=path.stem)
-        await upsert(job, path.name, chunks)
+        await upsert(job.org_id, kb_id(job), path.name, chunks)
         print(f"{path.name}: {len(chunks)} chunks")
 
 

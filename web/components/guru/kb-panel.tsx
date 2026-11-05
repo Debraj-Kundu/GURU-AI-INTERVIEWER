@@ -9,7 +9,7 @@ import { cn } from '@/lib/shadcn/utils';
 
 const ACCEPT = '.pdf,.docx,.txt,.md,.csv';
 const MAX_BYTES = 20 * 1024 * 1024; // mirrors backend MAX_FILE_BYTES
-const BUSY = new Set(['uploading', 'queued', 'parsing', 'embedding']);
+const BUSY = new Set(['uploading', 'queued', 'parsing', 'parsed', 'embedding']);
 
 function size(bytes: number | null) {
   if (bytes == null) return '';
@@ -18,7 +18,8 @@ function size(bytes: number | null) {
     : `${Math.ceil(bytes / 1024)} KB`;
 }
 
-export function KnowledgeBasePanel({ jobId }: { jobId: string }) {
+/** The company's knowledge base, shared by all of its roles. */
+export function KnowledgeBasePanel({ companyId }: { companyId: string }) {
   const [sources, setSources] = useState<Source[]>([]);
   const [errors, setErrors] = useState<string[]>([]);
   const [url, setUrl] = useState('');
@@ -27,8 +28,8 @@ export function KnowledgeBasePanel({ jobId }: { jobId: string }) {
   const fileRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(() => {
-    api.listSources(jobId).then(setSources, (e) => setErrors([e.message]));
-  }, [jobId]);
+    api.listSources(companyId).then(setSources, (e) => setErrors([e.message]));
+  }, [companyId]);
   useEffect(load, [load]);
   usePoll(load, uploading > 0 || sources.some((s) => BUSY.has(s.status)));
 
@@ -47,7 +48,7 @@ export function KnowledgeBasePanel({ jobId }: { jobId: string }) {
     await Promise.all(
       ok.map((f) =>
         api
-          .uploadFile(jobId, f)
+          .uploadFile(companyId, f)
           .catch((e) => setErrors((prev) => [...prev, `${f.name}: ${e.message}`]))
           .finally(() => {
             setUploading((n) => n - 1);
@@ -60,7 +61,7 @@ export function KnowledgeBasePanel({ jobId }: { jobId: string }) {
   async function addUrl() {
     if (!/^https?:\/\//.test(url)) return setErrors(['Links must start with http:// or https://']);
     try {
-      await api.addUrl(jobId, url.trim());
+      await api.addUrl(companyId, url.trim());
       setUrl('');
       setErrors([]);
       load();
@@ -75,9 +76,9 @@ export function KnowledgeBasePanel({ jobId }: { jobId: string }) {
   return (
     <div className="flex flex-col gap-4">
       <p className="text-muted-foreground text-sm">
-        The interviewer answers candidate questions about the company only from these sources. Files
-        up to 20 MB, at most 50 sources per job. Scanned PDFs without a text layer can&apos;t be
-        read.
+        Shared by every role at this company. The interviewer answers candidate questions about the
+        company only from these sources. Files up to 20 MB, at most 50 sources per company. Scanned
+        PDFs without a text layer can&apos;t be read.
       </p>
 
       <div className="grid gap-4 md:grid-cols-2">

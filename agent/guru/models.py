@@ -25,6 +25,7 @@ class Job(BaseModel):
     org_id: str
     title: str
     company_name: str
+    company_id: str = ""  # whose knowledge base the interviewer searches; "" = this job's own (fixtures)
     jd_text: str
     max_duration_sec: int = Field(600, ge=300, le=3600)
     questions: list[BankQuestion]

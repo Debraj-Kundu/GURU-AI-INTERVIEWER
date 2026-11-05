@@ -57,3 +57,19 @@ export function ThemeToggle({ className }: ThemeToggleProps) {
     </div>
   );
 }
+
+/** Single round light/dark switch for the recruiter header. Icons swap via CSS, so no hydration flash. */
+export function ThemeButton() {
+  const { resolvedTheme, setTheme } = useTheme();
+  return (
+    <button
+      type="button"
+      onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
+      className="hover:border-primary hover:text-primary grid size-8 cursor-pointer place-items-center rounded-full border transition-colors"
+    >
+      <span className="sr-only">Toggle light/dark theme</span>
+      <MoonIcon size={15} className="dark:hidden" />
+      <SunIcon size={15} className="hidden dark:block" />
+    </button>
+  );
+}

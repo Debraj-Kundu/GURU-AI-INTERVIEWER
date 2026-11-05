@@ -1,4 +1,4 @@
-"""Background tasks for ingest, planning, and scoring.
+"""Background tasks for planning and scoring (KB ingest runs in the Celery workers, app/worker.py).
 
 ponytail: in-process asyncio tasks instead of RabbitMQ workers (PLAN §4.3). A restart loses
 in-flight work, so startup re-queues anything left mid-way. Move to the queue for multi-process

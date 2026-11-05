@@ -1,40 +1,27 @@
 %% Agent architecture. Mermaid copy of agents.workflow.json (interactive: agents.html)
+%% Blue: backend API. Green: voice session. Amber: helpers. Red: forced exits.
 flowchart LR
-  subgraph api["Backend API"]
-    start["POST /start<br/>claim session, plan"]
-    complete["POST /complete<br/>store, score_session"]
-  end
+  start["POST /start<br/>claim session, plan"] -->|plan| consent["ConsentTask"]
+  consent -->|consent_given| interviewer["InterviewerAgent<br/>per-question loop"]
+  interviewer -->|handoff| closing["ClosingAgent<br/>candidate Q and A"]
+  closing -->|end_interview| report["Report<br/>on shutdown"]
+  report -->|results| complete["POST /complete<br/>store, score_session"]
 
-  subgraph helpers["Helpers"]
-    observer["Observer<br/>one call per answer"]
-    lookup["kb.lookup<br/>scope LLM + Qdrant"]
-    timer["run_timer<br/>time_up, then cap"]
-  end
-
-  subgraph live["Voice session"]
-    consent["ConsentTask"] -->|consent_given| interviewer["InterviewerAgent<br/>per-question loop"]
-    interviewer -->|handoff| closing["ClosingAgent<br/>candidate Q and A"]
-    closing -->|end_interview| report["Report<br/>on shutdown"]
-  end
-
-  subgraph exits["Forced exits"]
-    used["Already used<br/>leave, no report"]
-    declined["Declined<br/>say DECLINED"]
-    gone["Candidate gone<br/>silence or no rejoin"]
-    cap["Hard cap<br/>say GOODBYE"]
-  end
-
-  start -->|plan| consent
-  report -->|results| complete
-  interviewer -.->|each answer| observer
-  interviewer -.->|company Q| lookup
+  interviewer -.->|each answer| observer["Observer<br/>one call per answer"]
+  interviewer -.->|company Q| lookup["kb.lookup<br/>scope LLM + Qdrant"]
   closing -.->|company Q| lookup
-  interviewer -.->|starts at consent| timer
-  start -.->|409| used
-  consent -.->|consent_declined| declined
-  interviewer -.->|unresponsive| gone
-  timer -.->|cap reached| cap
-  declined & gone & cap -.->|shutdown| report
+  interviewer -.->|starts at consent| timer["run_timer<br/>time_up, then cap"]
 
-  classDef exit stroke:#e11d48,stroke-width:2px
+  start -.->|409| used["Already used<br/>leave, no report"]
+  consent -.->|consent_declined| declined["Declined<br/>say DECLINED"]
+  interviewer -.->|unresponsive| gone["Candidate gone<br/>silence or no rejoin"]
+  timer -.->|cap reached| cap["Hard cap<br/>say GOODBYE"]
+
+  classDef api fill:#dbeafe,stroke:#2563eb,color:#111
+  classDef live fill:#dcfce7,stroke:#16a34a,color:#111
+  classDef helper fill:#fef3c7,stroke:#d97706,color:#111
+  classDef exit fill:#ffe4e6,stroke:#e11d48,color:#111
+  class start,complete api
+  class consent,interviewer,closing,report live
+  class observer,lookup,timer helper
   class used,declined,gone,cap exit

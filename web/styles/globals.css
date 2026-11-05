@@ -6,25 +6,29 @@
 
 :root {
   --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: #002cf2;
-  --primary-hover: color-mix(in srgb, #002cf2 80%, #000);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
+  --background: #faf9fd;
+  --foreground: #1e1b2e;
+  --card: #ffffff;
+  --card-foreground: #1e1b2e;
+  --popover: #ffffff;
+  --popover-foreground: #1e1b2e;
+  --primary: #9564dd;
+  --primary-hover: color-mix(in srgb, #9564dd 80%, #000);
+  --primary-foreground: #ffffff;
+  --secondary: #ece8f6;
+  --secondary-foreground: #1e1b2e;
+  --muted: #f3f0fa;
+  --muted-foreground: #6b6880;
+  --accent: #f3f0fa;
+  --accent-foreground: #1e1b2e;
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  --border: #e3dff0;
+  --input: #e3dff0;
+  --ring: #9564dd;
+  /* Buttons keep this deeper ramp in both themes so white text stays readable. */
+  --brand-gradient: linear-gradient(135deg, #9564dd, #6e3fc4);
+  --brand-text-gradient: linear-gradient(120deg, #6e3fc4, #9564dd 55%, #b892f0);
+  --brand-glow: color-mix(in srgb, #9564dd 16%, transparent);
   --chart-1: oklch(0.646 0.222 41.116);
   --chart-2: oklch(0.6 0.118 184.704);
   --chart-3: oklch(0.398 0.07 227.392);
@@ -41,25 +45,27 @@
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.269 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: #1fd5f9;
-  --primary-hover: color-mix(in srgb, #1fd5f9 80%, #000);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.371 0 0);
-  --accent-foreground: oklch(0.985 0 0);
+  --background: #0f0c18;
+  --foreground: #ece9f5;
+  --card: #1a1626;
+  --card-foreground: #ece9f5;
+  --popover: #1a1626;
+  --popover-foreground: #ece9f5;
+  --primary: #b892f0;
+  --primary-hover: color-mix(in srgb, #b892f0 80%, #000);
+  --primary-foreground: #140f20;
+  --secondary: #2a2440;
+  --secondary-foreground: #ece9f5;
+  --muted: #17131f;
+  --muted-foreground: #a9a3bd;
+  --accent: #2a2440;
+  --accent-foreground: #ece9f5;
   --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
+  --border: #2c2640;
+  --input: #2c2640;
+  --ring: #b892f0;
+  --brand-text-gradient: linear-gradient(120deg, #d8c4f9, #b892f0 55%, #9564dd);
+  --brand-glow: color-mix(in srgb, #9564dd 22%, transparent);
   --chart-1: oklch(0.488 0.243 264.376);
   --chart-2: oklch(0.696 0.17 162.48);
   --chart-3: oklch(0.769 0.188 70.08);
@@ -77,10 +83,10 @@
 
 @theme inline {
   --font-sans:
-    var(--font-public-sans), ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji',
-    'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+    var(--font-inter), ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
+    'Segoe UI Symbol', 'Noto Color Emoji';
   --font-mono:
-    var(--font-commit-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
     'Liberation Mono', 'Courier New', monospace;
 
   --color-background: var(--background);
@@ -118,9 +124,41 @@
 
 @layer base {
   * {
-    @apply border-foreground/20 outline-ring/50;
+    @apply border-border outline-ring/50;
   }
   body {
     @apply bg-background text-foreground;
+    /* Soft purple glow at the top of every page. */
+    background-image: radial-gradient(
+      ellipse 80% 420px at 50% -120px,
+      var(--brand-glow),
+      transparent
+    );
+    background-repeat: no-repeat;
   }
+  ::selection {
+    @apply bg-primary text-primary-foreground;
+  }
+}
+
+/* Faint 60px grid that fades into the page (candidate pre-join screen). */
+.bg-grid {
+  background:
+    linear-gradient(0deg, var(--background), transparent 60%),
+    linear-gradient(90deg, color-mix(in srgb, var(--border) 45%, transparent) 1px, transparent 1px),
+    linear-gradient(color-mix(in srgb, var(--border) 45%, transparent) 1px, transparent 1px);
+  background-size:
+    auto,
+    60px 60px,
+    60px 60px;
+}
+
+@utility bg-brand {
+  background-image: var(--brand-gradient);
+}
+
+@utility text-brand {
+  background-image: var(--brand-text-gradient);
+  background-clip: text;
+  color: transparent;
 }

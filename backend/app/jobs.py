@@ -1,4 +1,5 @@
-"""Recruiter API: jobs, question-bank CSV import, KB sources, and the interview plan."""
+"""Recruiter API: companies, their jobs (roles), question-bank CSV import, company KB sources, and
+the interview plan."""
 
 import csv
 import io
@@ -18,17 +19,81 @@ from guru.planner import make_plan
 
 from . import settings, storage
 from .bg import spawn
-from .db import JobRow, PlanRow, SessionLocal, SourceRow, get_db
-from .ingest import guru_job, ingest
+from .db import CompanyRow, JobRow, PlanRow, SessionLocal, SourceRow, get_db
+from .ingest import enqueue, guru_job
 
 router = APIRouter()
 
 
-# ---------- jobs ----------
+# ---------- companies ----------
+
+class CompanyIn(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+
+
+def company_out(c: CompanyRow, roles: int = 0, sources: int = 0) -> dict:
+    return {"id": c.id, "name": c.name, "roles": roles, "sources": sources, "updated_at": c.updated_at}
+
+
+async def get_company(db: AsyncSession, company_id: str) -> CompanyRow:
+    company = await db.get(CompanyRow, company_id)
+    if company is None or company.org_id != settings.DEFAULT_ORG:
+        raise HTTPException(404, "Company not found")
+    return company
+
+
+def _count(model, company_col):
+    return select(func.count()).select_from(model).where(company_col == CompanyRow.id).scalar_subquery()
+
+
+@router.get("/companies")
+async def list_companies(db: AsyncSession = Depends(get_db)):
+    rows = await db.execute(
+        select(CompanyRow, _count(JobRow, JobRow.company_id), _count(SourceRow, SourceRow.company_id))
+        .where(CompanyRow.org_id == settings.DEFAULT_ORG)
+        .order_by(CompanyRow.name)
+    )
+    return [company_out(c, roles, sources) for c, roles, sources in rows]
+
+
+@router.post("/companies", status_code=201)
+async def create_company(body: CompanyIn, db: AsyncSession = Depends(get_db)):
+    company = CompanyRow(org_id=settings.DEFAULT_ORG, name=body.name.strip())
+    db.add(company)
+    await db.commit()
+    await db.refresh(company)
+    return company_out(company)
+
+
+@router.get("/companies/{company_id}")
+async def read_company(company_id: str, db: AsyncSession = Depends(get_db)):
+    return company_out(await get_company(db, company_id))
+
+
+@router.put("/companies/{company_id}")
+async def rename_company(company_id: str, body: CompanyIn, db: AsyncSession = Depends(get_db)):
+    company = await get_company(db, company_id)
+    company.name = body.name.strip()
+    # Plans carry the company name into the interview, so they are stale now.
+    await db.execute(update(JobRow).where(JobRow.company_id == company_id).values(version=JobRow.version + 1))
+    await db.commit()
+    await db.refresh(company)
+    return company_out(company)
+
+
+@router.delete("/companies/{company_id}", status_code=204)
+async def delete_company(company_id: str, db: AsyncSession = Depends(get_db)):
+    company = await get_company(db, company_id)
+    for src in await db.scalars(select(SourceRow).where(SourceRow.company_id == company_id)):
+        await _remove_source_data(src)
+    await db.delete(company)  # roles, sources, plans, and sessions cascade in the database
+    await db.commit()
+
+
+# ---------- jobs (a company's roles) ----------
 
 class JobIn(BaseModel):
     title: str = Field(min_length=1, max_length=200)
-    company_name: str = Field(min_length=1, max_length=200)
     jd_text: str = Field(min_length=1, max_length=50_000)
     max_duration_sec: int = Field(600, ge=300, le=3600)
     questions: list[BankQuestion] = []
@@ -44,7 +109,8 @@ class JobIn(BaseModel):
 
 def job_out(j: JobRow) -> dict:
     return {
-        "id": j.id, "title": j.title, "company_name": j.company_name, "jd_text": j.jd_text,
+        "id": j.id, "company_id": j.company_id, "company_name": j.company.name, "title": j.title,
+        "jd_text": j.jd_text,
         "max_duration_sec": j.max_duration_sec, "questions": j.questions, "criteria": j.criteria,
         "version": j.version, "updated_at": j.updated_at,
     }
@@ -57,19 +123,21 @@ async def get_job(db: AsyncSession, job_id: str) -> JobRow:
     return job
 
 
-@router.get("/jobs")
-async def list_jobs(db: AsyncSession = Depends(get_db)):
-    rows = await db.scalars(select(JobRow).where(JobRow.org_id == settings.DEFAULT_ORG).order_by(JobRow.updated_at.desc()))
+@router.get("/companies/{company_id}/jobs")
+async def list_jobs(company_id: str, db: AsyncSession = Depends(get_db)):
+    await get_company(db, company_id)
+    rows = await db.scalars(select(JobRow).where(JobRow.company_id == company_id).order_by(JobRow.title))
     return [
-        {"id": j.id, "title": j.title, "company_name": j.company_name, "updated_at": j.updated_at,
+        {"id": j.id, "title": j.title, "updated_at": j.updated_at,
          "questions": len(j.questions), "criteria": len(j.criteria)}
         for j in rows
     ]
 
 
-@router.post("/jobs", status_code=201)
-async def create_job(body: JobIn, db: AsyncSession = Depends(get_db)):
-    job = JobRow(org_id=settings.DEFAULT_ORG, **body.model_dump())
+@router.post("/companies/{company_id}/jobs", status_code=201)
+async def create_job(company_id: str, body: JobIn, db: AsyncSession = Depends(get_db)):
+    company = await get_company(db, company_id)
+    job = JobRow(org_id=company.org_id, company=company, **body.model_dump())
     db.add(job)
     await db.commit()
     await db.refresh(job)
@@ -95,9 +163,7 @@ async def update_job(job_id: str, body: JobIn, db: AsyncSession = Depends(get_db
 @router.delete("/jobs/{job_id}", status_code=204)
 async def delete_job(job_id: str, db: AsyncSession = Depends(get_db)):
     job = await get_job(db, job_id)
-    for src in await db.scalars(select(SourceRow).where(SourceRow.job_id == job_id)):
-        await _remove_source_data(job, src)
-    await db.delete(job)  # sources, plan, and sessions cascade
+    await db.delete(job)  # plan and sessions cascade; the company's knowledge base stays
     await db.commit()
 
 
@@ -132,8 +198,10 @@ def source_out(s: SourceRow) -> dict:
     }
 
 
-async def _source_count(db: AsyncSession, job_id: str) -> int:
-    return await db.scalar(select(func.count()).select_from(SourceRow).where(SourceRow.job_id == job_id)) or 0
+async def _source_count(db: AsyncSession, company_id: str) -> int:
+    return await db.scalar(
+        select(func.count()).select_from(SourceRow).where(SourceRow.company_id == company_id)
+    ) or 0
 
 
 async def _get_source(db: AsyncSession, source_id: str) -> SourceRow:
@@ -143,16 +211,18 @@ async def _get_source(db: AsyncSession, source_id: str) -> SourceRow:
     return src
 
 
-async def _remove_source_data(job: JobRow, src: SourceRow) -> None:
-    await kb.delete_source(guru_job(job), src.id)
+async def _remove_source_data(src: SourceRow) -> None:
+    await kb.delete_source(src.org_id, src.id)
     if src.s3_key:
         await storage.delete(src.s3_key)
 
 
-@router.get("/jobs/{job_id}/sources")
-async def list_sources(job_id: str, db: AsyncSession = Depends(get_db)):
-    await get_job(db, job_id)
-    rows = await db.scalars(select(SourceRow).where(SourceRow.job_id == job_id).order_by(SourceRow.created_at))
+@router.get("/companies/{company_id}/sources")
+async def list_sources(company_id: str, db: AsyncSession = Depends(get_db)):
+    await get_company(db, company_id)
+    rows = await db.scalars(
+        select(SourceRow).where(SourceRow.company_id == company_id).order_by(SourceRow.created_at)
+    )
     return [source_out(s) for s in rows]
 
 
@@ -162,23 +232,23 @@ class UploadIn(BaseModel):
     size_bytes: int = Field(gt=0)
 
 
-@router.post("/jobs/{job_id}/sources/upload", status_code=201)
-async def start_upload(job_id: str, body: UploadIn, db: AsyncSession = Depends(get_db)):
+@router.post("/companies/{company_id}/sources/upload", status_code=201)
+async def start_upload(company_id: str, body: UploadIn, db: AsyncSession = Depends(get_db)):
     """Step 1 of 2: validate, create the source row, and hand back a presigned PUT URL."""
-    job = await get_job(db, job_id)
+    company = await get_company(db, company_id)
     kind = settings.FILE_KINDS.get(PurePath(body.filename).suffix.lower())
     if kind is None:
         raise HTTPException(422, f"Unsupported file type. Allowed: {', '.join(settings.FILE_KINDS)}")
     if body.size_bytes > settings.MAX_FILE_BYTES:
         raise HTTPException(413, "Files must be 20 MB or smaller.")
-    if await _source_count(db, job_id) >= settings.MAX_SOURCES_PER_JOB:
-        raise HTTPException(422, f"A job can have at most {settings.MAX_SOURCES_PER_JOB} sources.")
+    if await _source_count(db, company_id) >= settings.MAX_SOURCES_PER_COMPANY:
+        raise HTTPException(422, f"A company can have at most {settings.MAX_SOURCES_PER_COMPANY} sources.")
     safe = re.sub(r"[^A-Za-z0-9._-]", "_", PurePath(body.filename).name)
-    src = SourceRow(org_id=job.org_id, job_id=job_id, kind=kind, name=PurePath(body.filename).name,
+    src = SourceRow(org_id=company.org_id, company_id=company_id, kind=kind, name=PurePath(body.filename).name,
                     size_bytes=body.size_bytes, status="uploading")
     db.add(src)
     await db.flush()  # assigns src.id
-    src.s3_key = key = f"{job.org_id}/{job_id}/{src.id}/{safe}"
+    src.s3_key = key = f"{company.org_id}/{company_id}/{src.id}/{safe}"
     await db.commit()
     return {"source": source_out(src), "upload_url": storage.presign_put(key, body.content_type),
             "headers": {"Content-Type": body.content_type}}
@@ -195,10 +265,9 @@ async def finish_upload(source_id: str, db: AsyncSession = Depends(get_db)):
         await storage.delete(src.s3_key or "")
         src.status, src.error = "failed", "File is larger than 20 MB."
     else:
-        src.status, src.size_bytes = "queued", size
+        src.size_bytes = size
+        await enqueue(db, src)
     await db.commit()
-    if src.status == "queued":
-        spawn(ingest(src.id))
     return source_out(src)
 
 
@@ -206,15 +275,16 @@ class UrlIn(BaseModel):
     url: str = Field(min_length=8, max_length=2000, pattern=r"^https?://")
 
 
-@router.post("/jobs/{job_id}/sources/url", status_code=201)
-async def add_url(job_id: str, body: UrlIn, db: AsyncSession = Depends(get_db)):
-    job = await get_job(db, job_id)
-    if await _source_count(db, job_id) >= settings.MAX_SOURCES_PER_JOB:
-        raise HTTPException(422, f"A job can have at most {settings.MAX_SOURCES_PER_JOB} sources.")
-    src = SourceRow(org_id=job.org_id, job_id=job_id, kind="url", name=body.url, url=body.url, status="queued")
+@router.post("/companies/{company_id}/sources/url", status_code=201)
+async def add_url(company_id: str, body: UrlIn, db: AsyncSession = Depends(get_db)):
+    company = await get_company(db, company_id)
+    if await _source_count(db, company_id) >= settings.MAX_SOURCES_PER_COMPANY:
+        raise HTTPException(422, f"A company can have at most {settings.MAX_SOURCES_PER_COMPANY} sources.")
+    src = SourceRow(org_id=company.org_id, company_id=company_id, kind="url", name=body.url, url=body.url,
+                    status="queued")
     db.add(src)
-    await db.commit()
-    spawn(ingest(src.id))
+    await db.flush()
+    await enqueue(db, src)
     return source_out(src)
 
 
@@ -223,17 +293,14 @@ async def retry_source(source_id: str, db: AsyncSession = Depends(get_db)):
     src = await _get_source(db, source_id)
     if src.status not in ("failed", "duplicate"):
         raise HTTPException(409, "Only failed sources can be retried.")
-    src.status, src.error = "queued", None
-    await db.commit()
-    spawn(ingest(src.id))
+    await enqueue(db, src)  # resumes at the stage that failed
     return source_out(src)
 
 
 @router.delete("/sources/{source_id}", status_code=204)
 async def delete_source(source_id: str, db: AsyncSession = Depends(get_db)):
     src = await _get_source(db, source_id)
-    job = await get_job(db, src.job_id)
-    await _remove_source_data(job, src)
+    await _remove_source_data(src)
     await db.delete(src)
     await db.commit()
 
@@ -278,7 +345,7 @@ async def _plan(job_id: str, version: int) -> None:
         if job is None:
             return
         excerpts = await db.scalars(
-            select(SourceRow.excerpt).where(SourceRow.job_id == job_id, SourceRow.status == "ready")
+            select(SourceRow.excerpt).where(SourceRow.company_id == job.company_id, SourceRow.status == "ready")
         )
         summary = "\n\n".join(excerpts)
     try:
@@ -298,15 +365,11 @@ async def _plan(job_id: str, version: int) -> None:
 
 
 async def requeue_unfinished() -> None:
-    """Startup: re-run work a previous process didn't finish (see bg.py)."""
+    """Startup: plans a previous process didn't finish (see bg.py). Ingest recovery is the relay's sweeper."""
     async with SessionLocal() as db:
-        stuck = list(await db.scalars(
-            select(SourceRow.id).where(SourceRow.status.in_(("queued", "parsing", "embedding")))
-        ))
         await db.execute(
             update(PlanRow).where(PlanRow.status == "generating")
             .values(status="failed", error="Interrupted by a server restart. Generate again.")
         )
         await db.commit()
-    for source_id in stuck:
-        spawn(ingest(source_id))
+
