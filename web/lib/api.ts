@@ -18,28 +18,40 @@ export type Criterion = {
   anchors: Record<string, string>; // "1".."5"
 };
 
+export type Company = {
+  id: string;
+  name: string;
+  roles: number;
+  sources: number;
+  updated_at: string;
+};
+
 export type JobInput = {
   title: string;
-  company_name: string;
   jd_text: string;
   max_duration_sec: number;
   questions: BankQuestion[];
   criteria: Criterion[];
 };
 
-export type Job = JobInput & { id: string; version: number; updated_at: string };
+export type Job = JobInput & {
+  id: string;
+  company_id: string;
+  company_name: string;
+  version: number;
+  updated_at: string;
+};
 
 export type JobSummary = {
   id: string;
   title: string;
-  company_name: string;
   updated_at: string;
   questions: number;
   criteria: number;
 };
 
 export type SourceStatus =
-  'uploading' | 'queued' | 'parsing' | 'embedding' | 'ready' | 'failed' | 'duplicate';
+  'uploading' | 'queued' | 'parsing' | 'parsed' | 'embedding' | 'ready' | 'failed' | 'duplicate';
 
 export type Source = {
   id: string;
@@ -82,6 +94,8 @@ export type SessionSummary = {
   job_id: string;
   candidate_name: string;
   status: SessionStatus;
+  invite_expires_at: string | null;
+  expired: boolean;
   score_status: ScoreStatus;
   created_at: string;
   started_at: string | null;
@@ -129,6 +143,7 @@ export type InterviewInfo = {
   job_title: string;
   company_name: string;
   max_duration_sec: number;
+  expired: boolean;
 };
 
 export class ApiError extends Error {
@@ -168,9 +183,17 @@ const json = (method: string, body?: unknown): RequestInit => ({
 });
 
 export const api = {
-  listJobs: () => request<JobSummary[]>('/jobs'),
+  listCompanies: () => request<Company[]>('/companies'),
+  getCompany: (id: string) => request<Company>(`/companies/${id}`),
+  createCompany: (name: string) => request<Company>('/companies', json('POST', { name })),
+  renameCompany: (id: string, name: string) =>
+    request<Company>(`/companies/${id}`, json('PUT', { name })),
+  deleteCompany: (id: string) => request<void>(`/companies/${id}`, json('DELETE')),
+
+  listJobs: (companyId: string) => request<JobSummary[]>(`/companies/${companyId}/jobs`),
   getJob: (id: string) => request<Job>(`/jobs/${id}`),
-  createJob: (job: JobInput) => request<Job>('/jobs', json('POST', job)),
+  createJob: (companyId: string, job: JobInput) =>
+    request<Job>(`/companies/${companyId}/jobs`, json('POST', job)),
   updateJob: (id: string, job: JobInput) => request<Job>(`/jobs/${id}`, json('PUT', job)),
   deleteJob: (id: string) => request<void>(`/jobs/${id}`, json('DELETE')),
   importQuestions: (file: File) => {
@@ -179,20 +202,20 @@ export const api = {
     return request<BankQuestion[]>('/questions/import', { method: 'POST', body: form });
   },
 
-  listSources: (jobId: string) => request<Source[]>(`/jobs/${jobId}/sources`),
-  addUrl: (jobId: string, url: string) =>
-    request<Source>(`/jobs/${jobId}/sources/url`, json('POST', { url })),
+  listSources: (companyId: string) => request<Source[]>(`/companies/${companyId}/sources`),
+  addUrl: (companyId: string, url: string) =>
+    request<Source>(`/companies/${companyId}/sources/url`, json('POST', { url })),
   retrySource: (id: string) => request<Source>(`/sources/${id}/retry`, json('POST')),
   deleteSource: (id: string) => request<void>(`/sources/${id}`, json('DELETE')),
   /** Presigned upload: ask the API for a URL, PUT the file straight to storage, then confirm. */
-  uploadFile: async (jobId: string, file: File) => {
+  uploadFile: async (companyId: string, file: File) => {
     const contentType = file.type || 'application/octet-stream';
     const { source, upload_url, headers } = await request<{
       source: Source;
       upload_url: string;
       headers: Record<string, string>;
     }>(
-      `/jobs/${jobId}/sources/upload`,
+      `/companies/${companyId}/sources/upload`,
       json('POST', { filename: file.name, content_type: contentType, size_bytes: file.size })
     );
     const put = await fetch(upload_url, { method: 'PUT', body: file, headers });
@@ -207,8 +230,13 @@ export const api = {
   generatePlan: (jobId: string) => request<PlanState>(`/jobs/${jobId}/plan`, json('POST')),
 
   listSessions: (jobId: string) => request<SessionSummary[]>(`/jobs/${jobId}/sessions`),
-  createSession: (jobId: string, candidate_name: string) =>
-    request<SessionSummary>(`/jobs/${jobId}/sessions`, json('POST', { candidate_name })),
+  createSession: (jobId: string, candidateName: string) =>
+    request<SessionSummary>(
+      `/jobs/${jobId}/sessions`,
+      json('POST', { candidate_name: candidateName })
+    ),
+  renewLink: (id: string) => request<SessionSummary>(`/sessions/${id}/renew`, json('POST')),
+  inviteDefaults: () => request<{ ttl_min: number }>('/invite-defaults'),
   getSession: (id: string) => request<SessionDetail>(`/sessions/${id}`),
   rescore: (id: string) => request<SessionSummary>(`/sessions/${id}/score`, json('POST')),
 

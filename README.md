@@ -10,7 +10,7 @@ for the recruiter to review. Scores are advisory and need a human decision.
 | [`web/`](web/) | Recruiter dashboard and the candidate interview page | Next.js 15, TypeScript, LiveKit Agents UI |
 | [`backend/`](backend/) | REST API: jobs, knowledge-base upload and ingestion, plans, invite links, scoring | FastAPI, SQLAlchemy (async), Alembic |
 | [`agent/`](agent/) | The voice interviewer, plus the planner, scorer and knowledge-base code (`guru` package) | LiveKit Agents (Python) |
-| [`deploy/`](deploy/) | Local infrastructure | Docker Compose: Postgres 18, Floci (S3) |
+| [`deploy/`](deploy/) | Local infrastructure | Docker Compose: Postgres 18, Floci (S3), Redis |
 | [`docs/`](docs/) | Diagram sources (Mermaid `.mmd`, Archify JSON) | |
 
 Background design and decisions: [PLAN.md](PLAN.md).
@@ -32,12 +32,15 @@ flowchart LR
   candidate(["Candidate"]) -->|invite link| web
 
   subgraph local["Runs locally"]
-    web["Next.js web<br/>/jobs, /interview/id"]
-    api["FastAPI<br/>jobs, ingest, plans, scoring"]
+    web["Next.js web<br/>/ companies, /jobs/id, /interview/id"]
+    api["FastAPI<br/>jobs, plans, scoring"]
+    relay["Outbox relay<br/>app.relay"]
+    workers["Celery workers<br/>parse, embed"]
     agent["Interviewer agent<br/>guru.interviewer worker"]
     subgraph docker["docker compose"]
       pg[("PostgreSQL")]
       s3[("S3: Floci")]
+      redis[("Redis<br/>ingest queues")]
     end
   end
 
@@ -53,8 +56,15 @@ flowchart LR
   web <-->|WebRTC audio| lk
   api -->|SQL| pg
   api -->|boto3| s3
-  api -->|upsert chunks| qd
-  api -->|plan, score, embed| llm
+  api -->|status + outbox row, one commit| pg
+  relay -->|unsent outbox rows| pg
+  relay -->|publish| redis
+  redis -->|tasks| workers
+  workers -->|SQL| pg
+  workers -->|get_bytes| s3
+  workers -->|upsert chunks| qd
+  workers -->|embed| llm
+  api -->|plan, score| llm
   lk -->|dispatch| agent
   agent -->|"/internal: start, complete"| api
   agent -->|voice LLM, Observer| llm
@@ -65,10 +75,12 @@ flowchart LR
 | Part | Responsibility |
 |---|---|
 | **Web** | Recruiter screens (job editor, knowledge base, plan preview, interview links, session review) and the candidate page (consent, mic check, audio room). Calls only the API; it never holds LiveKit keys. |
-| **API** | Source of truth in Postgres. Issues presigned upload URLs and LiveKit tokens, runs background work (ingest, plan generation, scoring) in-process, and exposes `/internal/*` to the agent behind a service token. |
+| **API** | Source of truth in Postgres. Issues presigned upload URLs and LiveKit tokens, queues knowledge-base ingestion for the workers, runs plan generation and scoring in-process, and exposes `/internal/*` to the agent behind a service token. |
 | **Agent** | One process per interview. Claims the session (`POST /internal/sessions/{id}/start`), runs consent, questions and follow-ups, and the closing Q&A, then posts the transcript and Observer notes back (`/complete`). |
+| **Workers** | Celery over Redis, one worker per stage: the parse worker fetches, dedupes and parses a source and saves its chunks; the embed worker embeds them into Qdrant. Each source's stage lives in Postgres, so a retry resumes after the last stage that succeeded. |
+| **Outbox relay** | Every stage change that needs a task commits an `outbox` row with it; the relay publishes unsent rows to Redis every second, so no task is lost between Postgres and Redis. Delivery is at least once and every stage skips work already done. It also re-queues sources whose published task was lost, and deletes sent rows after 7 days. |
 | **Floci** | Local S3 emulator; uploads go browser → S3 directly. Swap for AWS S3 by changing `S3_ENDPOINT` and keys. |
-| **Qdrant** | Company knowledge base (one collection, `kb_chunks`, filtered by `org_id` and `job_id`), dense + BM25 vectors. Never holds candidate data. |
+| **Qdrant** | Company knowledge base (one collection, `kb_chunks`, filtered by `org_id` and `kb_id` = the company id), dense + BM25 vectors. Never holds candidate data. |
 | **LLMs** | OpenRouter (`openai/gpt-6-luna`) for every text call; Gemini as fallback and for embeddings. |
 
 Interactive version with pan, zoom and guided views: open
@@ -95,13 +107,16 @@ sequenceDiagram
   participant W as Next.js (kb-panel.tsx)
   participant A as FastAPI (jobs.py)
   participant S3 as S3 (Floci)
-  participant I as ingest() background task
-  participant P as Process pool (parsers.parse)
+  participant DB as Postgres (kb_sources, outbox)
+  participant RL as Outbox relay (relay.py)
+  participant RQ as Redis (parse, embed queues)
+  participant PW as Parse worker (Celery)
+  participant EW as Embed worker (Celery)
   participant Q as Qdrant (kb.py)
 
   alt File (PDF, DOCX, TXT, MD, CSV)
     R->>W: drop file
-    W->>A: POST /jobs/{id}/sources/upload {filename, content_type, size_bytes}
+    W->>A: POST /companies/{id}/sources/upload {filename, content_type, size_bytes}
     A->>A: limits (20 MB, 50 sources), SourceRow status=uploading
     A-->>W: {source, upload_url, headers} (presign_put)
     W->>S3: PUT upload_url (file bytes, browser to storage)
@@ -114,35 +129,43 @@ sequenceDiagram
         A->>S3: delete(key)
         A-->>W: status=failed
       else
-        A->>I: spawn(ingest(id)), status=queued
+        A->>DB: status=queued + outbox(parse), one commit
       end
     end
   else Website link
     R->>W: paste URL
-    W->>A: POST /jobs/{id}/sources/url {url}
-    A->>I: spawn(ingest(id)), status=queued
+    W->>A: POST /companies/{id}/sources/url {url}
+    A->>DB: status=queued + outbox(parse), one commit
   end
 
-  Note over I: Semaphore(2) limits concurrent ingests
-  I->>I: status=parsing
+  loop every second
+    RL->>DB: unsent outbox rows (FOR UPDATE SKIP LOCKED)
+    RL->>RQ: send_task(..., expires=30 min)
+    RL->>DB: sent_at=now
+  end
+  RQ->>PW: parse_source(id)
+  PW->>PW: status=parsing
   alt kind == url
-    I->>I: fetch_page(url): SSRF check per hop, robots.txt, 5 MB, 10 s
+    PW->>PW: fetch_page(url): SSRF check per hop, robots.txt, 5 MB, 10 s
   else file
-    I->>S3: get_bytes(key)
+    PW->>S3: get_bytes(key)
   end
-  I->>I: sha256, same content already ready in this job?
+  PW->>PW: sha256, same content already ready in this company?
   alt duplicate
-    I->>I: status=duplicate
+    PW->>PW: status=duplicate
   else new content
-    I->>P: parse(kind, data, name)
-    P-->>I: chunks, excerpt (or ParseError -> status=failed)
-    I->>I: status=embedding
-    I->>Q: delete_source(job, source_id)
-    I->>Q: upsert(job, name, chunks, source_id) (Gemini embeddings, batches of 64)
-    I->>I: status=ready, chunks, excerpt
+    PW->>PW: parse(kind, data, name) (ParseError -> status=failed)
+    PW->>DB: status=parsed, parsed_chunks, excerpt + outbox(embed), one commit
+    RL->>RQ: embed_source(id) (next poll)
+    RQ->>EW: embed_source(id)
+    EW->>EW: status=embedding
+    EW->>Q: delete_source(org, source_id)
+    EW->>Q: upsert(company, name, chunks, source_id) (Gemini embeddings, batches of 64)
+    EW->>EW: status=ready, chunks; parsed_chunks cleared
   end
+  Note over PW,EW: other errors: retried 3 times (10, 20, 40 s), then status=failed with saved progress kept
   loop every few seconds (usePoll)
-    W->>A: GET /jobs/{id}/sources
+    W->>A: GET /companies/{id}/sources
   end
 ```
 
@@ -150,22 +173,26 @@ Source statuses:
 
 ```mermaid
 stateDiagram-v2
-  [*] --> uploading : POST /jobs/{id}/sources/upload
-  [*] --> queued : POST /jobs/{id}/sources/url
+  [*] --> uploading : POST /companies/{id}/sources/upload
+  [*] --> queued : POST /companies/{id}/sources/url
   uploading --> queued : POST /sources/{id}/uploaded, object found
   uploading --> failed : object larger than 20 MB
-  queued --> parsing : ingest() starts
-  parsing --> duplicate : same sha256 already ready in job
-  parsing --> embedding : parse() returned chunks
-  parsing --> failed : ParseError or fetch error
-  embedding --> ready : kb.upsert done
-  embedding --> failed : Qdrant or embedding error
-  failed --> queued : POST /sources/{id}/retry
+  queued --> parsing : parse worker starts
+  parsing --> duplicate : same sha256 already ready in company
+  parsing --> parsed : chunks saved on the row
+  parsing --> failed : ParseError, or other error after 3 retries
+  parsed --> embedding : embed worker starts
+  embedding --> ready : kb.upsert done, saved chunks cleared
+  embedding --> failed : Qdrant or embedding error after 3 retries
+  failed --> queued : POST /sources/{id}/retry, nothing parsed yet
+  failed --> parsed : POST /sources/{id}/retry, chunks saved (skips parsing)
   duplicate --> queued : POST /sources/{id}/retry
   ready --> [*] : DELETE /sources/{id}, any state (S3 object + Qdrant points removed)
   note right of queued
-    API restart: queued, parsing and embedding
-    are re-run by requeue_unfinished()
+    Tasks are published from the outbox, so none is lost before Redis.
+    A published task that's lost (expired after 30 min, Redis data lost):
+    every minute the relay re-queues sources unchanged for 10 min with
+    no unsent outbox row (same resume rule). Repeats are no-ops.
   end note
 ```
 
@@ -299,45 +326,34 @@ stateDiagram-v2
 
 ```mermaid
 flowchart LR
-  subgraph api["Backend API"]
-    start["POST /start<br/>claim session, plan"]
-    complete["POST /complete<br/>store, score_session"]
-  end
+  start["POST /start<br/>claim session, plan"] -->|plan| consent["ConsentTask"]
+  consent -->|consent_given| interviewer["InterviewerAgent<br/>per-question loop"]
+  interviewer -->|handoff| closing["ClosingAgent<br/>candidate Q and A"]
+  closing -->|end_interview| report["Report<br/>on shutdown"]
+  report -->|results| complete["POST /complete<br/>store, score_session"]
 
-  subgraph helpers["Helpers"]
-    observer["Observer<br/>one call per answer"]
-    lookup["kb.lookup<br/>scope LLM + Qdrant"]
-    timer["run_timer<br/>time_up, then cap"]
-  end
-
-  subgraph live["Voice session"]
-    consent["ConsentTask"] -->|consent_given| interviewer["InterviewerAgent<br/>per-question loop"]
-    interviewer -->|handoff| closing["ClosingAgent<br/>candidate Q and A"]
-    closing -->|end_interview| report["Report<br/>on shutdown"]
-  end
-
-  subgraph exits["Forced exits"]
-    used["Already used<br/>leave, no report"]
-    declined["Declined<br/>say DECLINED"]
-    gone["Candidate gone<br/>silence or no rejoin"]
-    cap["Hard cap<br/>say GOODBYE"]
-  end
-
-  start -->|plan| consent
-  report -->|results| complete
-  interviewer -.->|each answer| observer
-  interviewer -.->|company Q| lookup
+  interviewer -.->|each answer| observer["Observer<br/>one call per answer"]
+  interviewer -.->|company Q| lookup["kb.lookup<br/>scope LLM + Qdrant"]
   closing -.->|company Q| lookup
-  interviewer -.->|starts at consent| timer
-  start -.->|409| used
-  consent -.->|consent_declined| declined
-  interviewer -.->|unresponsive| gone
-  timer -.->|cap reached| cap
-  declined & gone & cap -.->|shutdown| report
+  interviewer -.->|starts at consent| timer["run_timer<br/>time_up, then cap"]
 
-  classDef exit stroke:#e11d48,stroke-width:2px
+  start -.->|409| used["Already used<br/>leave, no report"]
+  consent -.->|consent_declined| declined["Declined<br/>say DECLINED"]
+  interviewer -.->|unresponsive| gone["Candidate gone<br/>silence or no rejoin"]
+  timer -.->|cap reached| cap["Hard cap<br/>say GOODBYE"]
+
+  classDef api fill:#dbeafe,stroke:#2563eb,color:#111
+  classDef live fill:#dcfce7,stroke:#16a34a,color:#111
+  classDef helper fill:#fef3c7,stroke:#d97706,color:#111
+  classDef exit fill:#ffe4e6,stroke:#e11d48,color:#111
+  class start,complete api
+  class consent,interviewer,closing,report live
+  class observer,lookup,timer helper
   class used,declined,gone,cap exit
 ```
+
+Blue: backend API. Green: voice session. Amber: helpers. Red: forced exits; every exit except
+"Already used" still runs Report.
 
 Interactive version with notes: [docs/architecture/agents.html](docs/architecture/agents.html) (after
 cloning). The same flow as states, with timings and follow-up rules:
@@ -405,6 +421,7 @@ stateDiagram-v2
 ```mermaid
 erDiagram
   jobs ||--o{ kb_sources : "knowledge base"
+  kb_sources ||--o{ outbox : "tasks to publish"
   jobs ||--o| interview_plans : "latest plan"
   jobs ||--o{ interview_sessions : "interview links"
 
@@ -432,11 +449,23 @@ erDiagram
     text url "links only"
     int size_bytes
     string sha256 "indexed, duplicate check"
-    string status "uploading to ready, failed, duplicate"
+    string status "uploading, queued, parsing, parsed, embedding, ready, failed, duplicate"
+    jsonb parsed_chunks "parse output until embedded, then cleared"
+    timestamptz updated_at "last stage change, for the stuck-source sweeper"
     text error
     int chunks "points in Qdrant"
     text excerpt "feeds the planner"
     timestamptz created_at
+  }
+
+  outbox {
+    bigint id PK "publish order"
+    string task "parse, embed"
+    string source_id FK "cascade delete"
+    timestamptz created_at "same commit as the source's stage change"
+    timestamptz sent_at "null until the relay publishes it; sent rows kept 7 days"
+    int attempts "failed publishes"
+    text last_error
   }
 
   interview_plans {
@@ -453,6 +482,7 @@ erDiagram
     string org_id
     string job_id FK "cascade delete"
     string candidate_name
+    timestamptz invite_expires_at "link expiry until the interview starts"
     string room_name "new per try until the agent starts"
     string status "created, active, completed, declined"
     jsonb plan "snapshot at link creation"
@@ -489,9 +519,9 @@ written whole. Outside Postgres:
   [ElevenLabs](https://elevenlabs.io), [OpenRouter](https://openrouter.ai),
   [Google AI Studio](https://aistudio.google.com) (Gemini), [Qdrant Cloud](https://cloud.qdrant.io)
 
-Ports used: `3000` web, `8080` API, `5432` Postgres, `4566` Floci.
+Ports used: `3000` web, `8080` API, `5432` Postgres, `4566` Floci, `6379` Redis.
 
-### 1. Start Postgres and S3
+### 1. Start Postgres, S3 and Redis
 
 From the repo root:
 
@@ -503,7 +533,7 @@ docker compose -f deploy/docker-compose.yml up -d
 docker compose -f deploy/docker-compose.yml ps
 ```
 
-Both services should show `running` (Postgres also `healthy`). Data lives in Docker volumes, so it
+All three services should show `running` (Postgres also `healthy`). Data lives in Docker volumes, so it
 survives restarts.
 
 ### 2. Add your keys
@@ -534,6 +564,41 @@ uv run fastapi dev app/main.py --port 8080
 
 `backend/.env` already matches the Compose services. API docs: http://localhost:8080/docs. On start
 the API creates the S3 bucket and the Qdrant collection if they're missing.
+
+### 3b. Run the outbox relay and the ingest workers (three new terminals)
+
+The relay publishes queued work from Postgres to Redis; two Celery workers parse and embed it:
+
+```bash
+cd backend
+uv run python -m app.relay
+```
+
+```bash
+cd backend
+uv run celery -A app.worker worker -Q parse -n parse@%h --pool=solo --loglevel=info
+```
+
+```bash
+cd backend
+uv run celery -A app.worker worker -Q embed -n embed@%h --pool=solo --loglevel=info
+```
+
+`--pool=solo` is needed on Windows (one task at a time per worker); on Linux drop it to use the
+default prefork pool.
+
+Redis keys and TTLs:
+
+| Key | TTL |
+|---|---|
+| Task messages in `parse`, `embed` | 30 min per message (Celery `expires`): an older task is discarded unrecorded, and the relay re-queues its source |
+| `unacked` (taken, not finished) | 15 min `visibility_timeout`: a crashed worker's task goes back on the queue |
+| The queues themselves, `_kombu.binding*` | None, on purpose: an expiring queue deletes pending tasks; kombu keeps bindings TTL-free |
+
+Redis runs with `appendonly yes` (queued tasks survive a restart) and `noeviction`.
+
+Interview links expire after `INVITE_TTL_MIN` minutes (default 10) unless the interview has started;
+**Renew link** restarts the clock.
 
 ### 4. Run the agent (new terminal)
 
@@ -584,6 +649,8 @@ docker compose -f deploy/docker-compose.yml down -v
 | Candidate page: "We couldn't start your interview" | No agent joined within about 20 s. Start the agent (step 4) and wait for `registered worker`, then click **Try again**. |
 | Agent joins and leaves at once, log says `Interview already started or ended` | That interview link was already used. Create a new link. |
 | Browser calls `localhost:8000` or gets CORS errors | The web app was built before `NEXT_PUBLIC_API_URL` changed. `NEXT_PUBLIC_*` values are baked in at build time: restart `npm run dev`, or rerun `npm run build` before `npm start`. |
+| Source stuck on `queued` or `parsed` | The relay or a worker (step 3b) isn't running. Start it; nothing is lost, waiting work is picked up when it starts. If a published task itself was lost, the relay re-queues the source after 10 minutes (`INGEST_STUCK_MIN`). |
+| Relay logs `Outbox publish failed` | Redis is down. Start it (step 1); the relay retries every second, in order, and records the error on the `outbox` row. |
 | `alembic upgrade head` can't connect | Postgres isn't up. Check `docker compose -f deploy/docker-compose.yml ps`. |
 | `warning: VIRTUAL_ENV=... does not match the project environment` | Another project's virtualenv is active in that shell. Harmless; run `deactivate` to silence it. |
 | Console errors `publisher data channel ... closed unexpectedly` after the goodbye | LiveKit closing the connection when the agent deletes the room. Expected noise. |

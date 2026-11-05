@@ -31,6 +31,18 @@ services:
     volumes: [flocidata:/app/data]
     restart: unless-stopped
 
+  # Celery broker for the knowledge-base ingest workers (backend/app/worker.py).
+  # appendonly: queued tasks survive a restart (fsync every second, so at most ~1 s is lost; the
+  # relay's sweeper re-queues anything lost). noeviction: a full Redis refuses writes instead of
+  # silently dropping queues or kombu's bindings.
+  redis:
+    image: redis:7.4-alpine
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
+    ports: ["127.0.0.1:6379:6379"]
+    volumes: [redisdata:/data]
+    restart: unless-stopped
+
 volumes:
   pgdata:
   flocidata:
+  redisdata:

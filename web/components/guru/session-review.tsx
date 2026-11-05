@@ -3,7 +3,15 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { ArrowClockwiseIcon } from '@phosphor-icons/react';
-import { Badge, Card, ErrorText, StatusBadge, formatDuration, usePoll } from '@/components/guru/ui';
+import {
+  Badge,
+  Card,
+  ErrorText,
+  PageHeader,
+  StatusBadge,
+  formatDuration,
+  usePoll,
+} from '@/components/guru/ui';
 import { Button } from '@/components/ui/button';
 import { type SessionDetail, api } from '@/lib/api';
 import { cn } from '@/lib/shadcn/utils';
@@ -31,37 +39,38 @@ export function SessionReview({ id }: { id: string }) {
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <Link
-            href={`/jobs/${s.job_id}`}
-            className="text-muted-foreground text-sm hover:underline"
-          >
-            ← Job
+      <PageHeader
+        eyebrow={
+          <Link href={`/jobs/${s.job_id}`} className="hover:text-primary">
+            ← Back to job
           </Link>
-          <h1 className="text-2xl font-semibold">{s.candidate_name || 'Unnamed candidate'}</h1>
-          <p className="text-muted-foreground text-sm">
+        }
+        title={s.candidate_name || 'Unnamed candidate'}
+        subtitle={
+          <>
             {s.started_at && new Date(s.started_at).toLocaleString()} ·{' '}
             {formatDuration(s.duration_sec)}
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <StatusBadge status={s.score_status} />
-          {s.score?.overall != null && (
-            <span className="font-mono text-3xl font-semibold">
-              {s.score.overall.toFixed(2)}
-              <span className="text-muted-foreground text-base"> / 5</span>
-            </span>
-          )}
-          <Button
-            variant="outline"
-            onClick={() => api.rescore(id).then(load, (e) => setError(e.message))}
-            disabled={s.score_status === 'scoring' || s.status !== 'completed'}
-          >
-            <ArrowClockwiseIcon /> Re-score
-          </Button>
-        </div>
-      </div>
+          </>
+        }
+        actions={
+          <>
+            <StatusBadge status={s.score_status} />
+            {s.score?.overall != null && (
+              <span className="font-mono text-3xl font-semibold">
+                {s.score.overall.toFixed(2)}
+                <span className="text-muted-foreground text-base"> / 5</span>
+              </span>
+            )}
+            <Button
+              variant="outline"
+              onClick={() => api.rescore(id).then(load, (e) => setError(e.message))}
+              disabled={s.score_status === 'scoring' || s.status !== 'completed'}
+            >
+              <ArrowClockwiseIcon /> Re-score
+            </Button>
+          </>
+        }
+      />
       <ErrorText>{error || s.score_error}</ErrorText>
       {s.score && (
         <p className="rounded-md bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:text-amber-300">
@@ -71,7 +80,9 @@ export function SessionReview({ id }: { id: string }) {
 
       <div className="grid gap-5 lg:grid-cols-[1fr_1.1fr]">
         <div className="flex flex-col gap-3">
-          <h2 className="font-medium">Scores</h2>
+          <h2 className="text-muted-foreground font-mono text-xs tracking-widest uppercase">
+            Scores
+          </h2>
           {s.score_status === 'scoring' && (
             <Card className="text-muted-foreground text-sm">Scoring…</Card>
           )}
@@ -113,7 +124,9 @@ export function SessionReview({ id }: { id: string }) {
 
           {s.notes.length > 0 && (
             <>
-              <h2 className="mt-2 font-medium">Observer notes</h2>
+              <h2 className="text-muted-foreground mt-2 font-mono text-xs tracking-widest uppercase">
+                Observer notes
+              </h2>
               {s.notes.map((n, i) => (
                 <Card key={i} className="flex flex-col gap-1.5 text-sm">
                   <div className="flex items-center gap-2">
@@ -147,7 +160,9 @@ export function SessionReview({ id }: { id: string }) {
         </div>
 
         <div className="flex flex-col gap-3">
-          <h2 className="font-medium">Transcript</h2>
+          <h2 className="text-muted-foreground font-mono text-xs tracking-widest uppercase">
+            Transcript
+          </h2>
           <Card className="flex max-h-[75vh] flex-col gap-3 overflow-y-auto">
             {s.transcript.length === 0 && (
               <p className="text-muted-foreground text-sm">No transcript.</p>

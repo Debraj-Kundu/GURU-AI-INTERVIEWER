@@ -2,27 +2,48 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { CopyIcon, PlusIcon } from '@phosphor-icons/react';
-import { Card, ErrorText, Input, StatusBadge, formatDuration, usePoll } from '@/components/guru/ui';
+import { ArrowClockwiseIcon, CopyIcon, LinkIcon } from '@phosphor-icons/react';
+import {
+  Card,
+  ErrorText,
+  Input,
+  StatusBadge,
+  Tabs,
+  formatDuration,
+  usePoll,
+} from '@/components/guru/ui';
 import { Button } from '@/components/ui/button';
 import { type SessionSummary, api } from '@/lib/api';
 
 export function InterviewsPanel({ jobId, canCreate }: { jobId: string; canCreate: boolean }) {
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [name, setName] = useState('');
+  const [ttlMin, setTtlMin] = useState<number | null>(null);
   const [error, setError] = useState('');
   const [copied, setCopied] = useState('');
+  const [view, setView] = useState<'upcoming' | 'completed'>('upcoming');
 
   const load = useCallback(() => {
     api.listSessions(jobId).then(setSessions, (e) => setError(e.message));
   }, [jobId]);
   useEffect(load, [load]);
+  useEffect(() => {
+    api.inviteDefaults().then(
+      (d) => setTtlMin(d.ttl_min),
+      () => {}
+    );
+  }, []);
   // Live interviews end and get scored in the background; keep the list fresh while that happens.
   usePoll(
     load,
     sessions.some((s) => s.status === 'active' || s.score_status === 'scoring'),
     5000
   );
+
+  const isUpcoming = (s: SessionSummary) =>
+    (s.status === 'created' && !s.expired) || s.status === 'active';
+  const upcoming = sessions.filter(isUpcoming);
+  const shown = view === 'upcoming' ? upcoming : sessions.filter((s) => !isUpcoming(s));
 
   const link = (id: string) => `${window.location.origin}/interview/${id}`;
 
@@ -41,51 +62,70 @@ export function InterviewsPanel({ jobId, canCreate }: { jobId: string; canCreate
     }
   }
 
+  async function renew(id: string) {
+    setError('');
+    try {
+      await api.renewLink(id);
+      load();
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
+
   return (
     <div className="flex flex-col gap-4">
-      <Card className="flex flex-col gap-2">
-        <span className="text-sm font-medium">Create an interview link</span>
-        <div className="flex flex-wrap gap-2">
+      <Card className="flex flex-col gap-2 p-4">
+        <span className="text-muted-foreground font-mono text-[11px] tracking-widest uppercase">
+          Invite a candidate
+        </span>
+        <div className="flex flex-col gap-2">
           <Input
-            className="max-w-xs"
             placeholder="Candidate name (optional)"
             value={name}
             onChange={(e) => setName(e.target.value)}
           />
           <Button onClick={create} disabled={!canCreate}>
-            <PlusIcon /> Create link
+            <LinkIcon /> Generate link
           </Button>
         </div>
         <span className="text-muted-foreground text-xs">
           {canCreate
-            ? 'Each link uses a snapshot of the current plan, so later edits don’t change it. Anyone with the link can join.'
+            ? `The link is copied for you to share${ttlMin ? `; it expires after ${ttlMin} minutes unless the interview has started` : ''}. Each link uses a snapshot of the current plan, so later edits don’t change it.`
             : 'Generate an up-to-date plan first.'}
         </span>
         <ErrorText>{error}</ErrorText>
       </Card>
 
-      <Card className="p-0">
-        {sessions.length === 0 && (
-          <p className="text-muted-foreground p-5 text-center text-sm">No interviews yet.</p>
-        )}
-        <ul className="divide-y">
-          {sessions.map((s) => (
-            <li key={s.id} className="flex flex-wrap items-center gap-3 px-5 py-3 text-sm">
-              <span className="min-w-32 flex-1 font-medium">
-                {s.candidate_name || 'Unnamed candidate'}
+      <Tabs
+        tabs={[
+          { id: 'upcoming', label: `Upcoming (${upcoming.length})` },
+          { id: 'completed', label: `Completed (${sessions.length - upcoming.length})` },
+        ]}
+        value={view}
+        onChange={setView}
+      />
+      {shown.length === 0 && (
+        <p className="text-muted-foreground py-4 text-center text-sm">No interviews here.</p>
+      )}
+      <ul className="flex flex-col gap-2">
+        {shown.map((s) => (
+          <li key={s.id}>
+            <Card className="flex flex-wrap items-center gap-2 p-4 text-sm">
+              <span className="w-full font-medium">{s.candidate_name || 'Unnamed candidate'}</span>
+              <span className="text-muted-foreground w-full font-mono text-[11px]">
+                {new Date(s.created_at).toLocaleString()} · {formatDuration(s.duration_sec)}
               </span>
-              <span className="text-muted-foreground text-xs">
-                {new Date(s.created_at).toLocaleString()}
-              </span>
-              <span className="text-muted-foreground text-xs">
-                {formatDuration(s.duration_sec)}
-              </span>
-              <StatusBadge status={s.status} />
+              <StatusBadge status={s.expired ? 'expired' : s.status} />
               {s.status === 'completed' && <StatusBadge status={s.score_status} />}
               {s.overall != null && (
-                <span className="font-mono text-sm">{s.overall.toFixed(2)} / 5</span>
+                <span className="ml-auto font-mono text-sm">{s.overall.toFixed(2)} / 5</span>
               )}
-              {(s.status === 'created' || s.status === 'active') && (
+              {s.expired && (
+                <Button variant="outline" size="sm" onClick={() => renew(s.id)}>
+                  <ArrowClockwiseIcon /> Renew link
+                </Button>
+              )}
+              {((s.status === 'created' && !s.expired) || s.status === 'active') && (
                 <Button
                   variant="outline"
                   size="sm"
@@ -101,10 +141,10 @@ export function InterviewsPanel({ jobId, canCreate }: { jobId: string; canCreate
                   <Link href={`/sessions/${s.id}`}>Review</Link>
                 </Button>
               )}
-            </li>
-          ))}
-        </ul>
-      </Card>
+            </Card>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

@@ -10,7 +10,6 @@ type SectionProps = { value: JobInput; onChange: (v: JobInput) => void };
 
 export const EMPTY_JOB: JobInput = {
   title: '',
-  company_name: '',
   jd_text: '',
   max_duration_sec: 600,
   questions: [],
@@ -21,7 +20,6 @@ export const EMPTY_JOB: JobInput = {
 export function jobProblems(j: JobInput): string[] {
   const out: string[] = [];
   if (!j.title.trim()) out.push('Add a job title.');
-  if (!j.company_name.trim()) out.push('Add the company name.');
   if (!j.jd_text.trim()) out.push('Paste the job description.');
   if (j.questions.some((q) => !q.text.trim())) out.push('Every question needs text.');
   if (j.criteria.some((c) => !c.name.trim())) out.push('Every criterion needs a name.');
@@ -38,12 +36,6 @@ export function DetailsSection({ value, onChange }: SectionProps) {
         <Input
           value={value.title}
           onChange={(e) => onChange({ ...value, title: e.target.value })}
-        />
-      </Field>
-      <Field label="Company name">
-        <Input
-          value={value.company_name}
-          onChange={(e) => onChange({ ...value, company_name: e.target.value })}
         />
       </Field>
       <Field

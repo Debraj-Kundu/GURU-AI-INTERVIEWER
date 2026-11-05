@@ -3,7 +3,7 @@ import * as React from 'react';
 import { cn } from '@/lib/shadcn/utils';
 
 const field =
-  'border-input bg-background placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 w-full rounded-md border px-3 py-2 text-sm shadow-xs outline-none focus-visible:ring-[3px] disabled:opacity-50';
+  'border-input bg-card placeholder:text-muted-foreground focus-visible:border-primary focus-visible:ring-primary/15 w-full rounded-lg border px-3 py-2 text-sm transition-colors outline-none focus-visible:ring-[3px] disabled:opacity-50';
 
 export function Input({ className, ...props }: React.ComponentProps<'input'>) {
   return <input className={cn(field, 'h-9', className)} {...props} />;
@@ -26,7 +26,9 @@ export function Field({
 }) {
   return (
     <label className={cn('flex flex-col gap-1.5', className)}>
-      <span className="text-sm font-medium">{label}</span>
+      <span className="text-muted-foreground font-mono text-[11px] tracking-widest uppercase">
+        {label}
+      </span>
       {children}
       {hint && <span className="text-muted-foreground text-xs">{hint}</span>}
     </label>
@@ -34,17 +36,15 @@ export function Field({
 }
 
 export function Card({ className, ...props }: React.ComponentProps<'section'>) {
-  return (
-    <section className={cn('bg-card rounded-xl border p-5 shadow-xs', className)} {...props} />
-  );
+  return <section className={cn('bg-card rounded-xl border p-5', className)} {...props} />;
 }
 
 const tones = {
-  neutral: 'bg-muted text-muted-foreground',
-  busy: 'bg-blue-500/15 text-blue-700 dark:text-blue-300',
-  good: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300',
-  warn: 'bg-amber-500/15 text-amber-700 dark:text-amber-300',
-  bad: 'bg-red-500/15 text-red-700 dark:text-red-300',
+  neutral: 'border-border text-muted-foreground',
+  busy: 'border-sky-600/30 text-sky-700 dark:text-sky-300',
+  good: 'border-emerald-600/30 text-emerald-700 dark:text-emerald-300',
+  warn: 'border-amber-600/30 text-amber-700 dark:text-amber-300',
+  bad: 'border-red-600/30 text-red-700 dark:text-red-300',
 };
 
 export type Tone = keyof typeof tones;
@@ -53,7 +53,7 @@ export function Badge({ tone = 'neutral', children }: { tone?: Tone; children: R
   return (
     <span
       className={cn(
-        'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium',
+        'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 font-mono text-[10px] tracking-wider uppercase',
         tones[tone]
       )}
     >
@@ -67,12 +67,14 @@ const STATUS_TONE: Record<string, Tone> = {
   scored: 'good',
   completed: 'good',
   failed: 'bad',
+  expired: 'warn',
   declined: 'warn',
   duplicate: 'warn',
   stale: 'warn',
   uploading: 'busy',
   queued: 'busy',
   parsing: 'busy',
+  parsed: 'busy',
   embedding: 'busy',
   generating: 'busy',
   scoring: 'busy',
@@ -93,7 +95,7 @@ export function Tabs<T extends string>({
   onChange: (id: T) => void;
 }) {
   return (
-    <div role="tablist" className="flex gap-1 overflow-x-auto border-b">
+    <div role="tablist" className="flex gap-1 overflow-x-auto overflow-y-hidden border-b">
       {tabs.map((t) => (
         <button
           key={t.id}
@@ -101,7 +103,7 @@ export function Tabs<T extends string>({
           aria-selected={value === t.id}
           onClick={() => onChange(t.id)}
           className={cn(
-            '-mb-px border-b-2 px-3 py-2 text-sm font-medium whitespace-nowrap transition-colors',
+            '-mb-px cursor-pointer border-b-2 px-3 py-2.5 font-mono text-xs tracking-wider whitespace-nowrap uppercase transition-colors',
             value === t.id
               ? 'border-primary text-foreground'
               : 'text-muted-foreground hover:text-foreground border-transparent'
@@ -111,6 +113,37 @@ export function Tabs<T extends string>({
         </button>
       ))}
     </div>
+  );
+}
+
+/** Mono eyebrow, large tight title, hairline rule. `actions` sit on the right. */
+export function PageHeader({
+  eyebrow,
+  title,
+  subtitle,
+  actions,
+}: {
+  eyebrow?: React.ReactNode;
+  title: React.ReactNode;
+  subtitle?: React.ReactNode;
+  actions?: React.ReactNode;
+}) {
+  return (
+    <header className="flex flex-wrap items-end justify-between gap-4 border-b pb-6">
+      <div className="flex min-w-0 flex-col gap-2">
+        {eyebrow && (
+          <p className="text-muted-foreground flex items-center gap-2 font-mono text-[11px] tracking-widest uppercase">
+            <span className="bg-primary inline-block size-1.5 rounded-full" />
+            {eyebrow}
+          </p>
+        )}
+        <h1 className="text-brand w-fit text-4xl leading-tight font-semibold tracking-[-0.045em] sm:text-5xl">
+          {title}
+        </h1>
+        {subtitle && <p className="text-muted-foreground text-sm">{subtitle}</p>}
+      </div>
+      {actions && <div className="flex flex-wrap items-center gap-3">{actions}</div>}
+    </header>
   );
 }
 

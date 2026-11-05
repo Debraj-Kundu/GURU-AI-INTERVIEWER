@@ -28,6 +28,7 @@ internal = APIRouter(prefix="/internal")
 def session_out(s: SessionRow, full: bool = True) -> dict:
     out: dict[str, Any] = {
         "id": s.id, "job_id": s.job_id, "candidate_name": s.candidate_name, "status": s.status,
+        "invite_expires_at": s.invite_expires_at, "expired": expired(s),
         "score_status": s.score_status, "created_at": s.created_at, "started_at": s.started_at,
         "ended_at": s.ended_at, "duration_sec": s.duration_sec,
         "overall": s.score.get("overall") if s.score else None,
@@ -36,6 +37,16 @@ def session_out(s: SessionRow, full: bool = True) -> dict:
         out |= {"plan": s.plan["plan"], "criteria": s.plan["job"]["criteria"], "transcript": s.transcript,
                 "notes": s.notes, "usage": s.usage, "score": s.score, "score_error": s.score_error}
     return out
+
+
+def expired(s: SessionRow) -> bool:
+    """The invite lapsed before the interview started. Once started, rejoins don't expire."""
+    return s.status == "created" and s.invite_expires_at is not None and datetime.now(timezone.utc) > s.invite_expires_at
+
+
+def start_window(s: SessionRow) -> None:
+    """The link is valid for INVITE_TTL_MIN from now, until the interview starts."""
+    s.invite_expires_at = datetime.now(timezone.utc) + timedelta(minutes=settings.INVITE_TTL_MIN)
 
 
 async def _get_session(db: AsyncSession, session_id: str) -> SessionRow:
@@ -51,6 +62,11 @@ class SessionIn(BaseModel):
     candidate_name: str = Field("", max_length=200)
 
 
+@router.get("/invite-defaults")
+async def invite_defaults():
+    return {"ttl_min": settings.INVITE_TTL_MIN}
+
+
 @router.post("/jobs/{job_id}/sessions", status_code=201)
 async def create_session(job_id: str, body: SessionIn, db: AsyncSession = Depends(get_db)):
     job = await get_job(db, job_id)
@@ -63,6 +79,18 @@ async def create_session(job_id: str, body: SessionIn, db: AsyncSession = Depend
     db.add(s)
     await db.flush()
     s.room_name = f"interview-{s.id}"  # unique per session: dispatch only happens when the room is created
+    start_window(s)
+    await db.commit()
+    return session_out(s, full=False)
+
+
+@router.post("/sessions/{session_id}/renew")
+async def renew_link(session_id: str, db: AsyncSession = Depends(get_db)):
+    """Same link, fresh expiry window."""
+    s = await _get_session(db, session_id)
+    if s.status != "created":
+        raise HTTPException(409, "Only links for interviews that haven't started can be renewed.")
+    start_window(s)
     await db.commit()
     return session_out(s, full=False)
 
@@ -100,7 +128,7 @@ async def interview_info(session_id: str, db: AsyncSession = Depends(get_db)):
     s = await _get_session(db, session_id)
     job = s.plan["job"]
     return {"id": s.id, "candidate_name": s.candidate_name, "status": s.status, "job_title": job["title"],
-            "company_name": job["company_name"], "max_duration_sec": job["max_duration_sec"]}
+            "company_name": job["company_name"], "max_duration_sec": job["max_duration_sec"], "expired": expired(s)}
 
 
 @router.post("/interviews/{session_id}/token")
@@ -110,6 +138,8 @@ async def interview_token(session_id: str, db: AsyncSession = Depends(get_db)):
     s = await _get_session(db, session_id)
     if s.status in ("completed", "declined"):
         raise HTTPException(409, "This interview has already ended.")
+    if expired(s):
+        raise HTTPException(410, "This interview link has expired. Ask the recruiter for a new one.")
     if s.status == "created":
         # No interviewer has joined yet (e.g. none was running). A token only dispatches the agent
         # when it creates the room, so each try gets a fresh room. Once the agent starts
@@ -134,7 +164,7 @@ async def interview_token(session_id: str, db: AsyncSession = Depends(get_db)):
         ))
         .to_jwt()
     )
-    # ponytail: the link itself is the credential (no invite expiry or single use yet, PLAN §4.4).
+    # ponytail: the link itself is the credential until it expires (no single use beyond the one attempt, PLAN §4.4).
     # started_at lets a rejoining page show the real time left.
     return {"server_url": settings.LIVEKIT_URL, "participant_token": token, "started_at": s.started_at}
 

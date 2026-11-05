@@ -1,7 +1,6 @@
 """Guru API. Run: uv run fastapi dev app/main.py --port 8080   (http://localhost:8080/docs)"""
 
 import logging
-from concurrent.futures import ProcessPoolExecutor
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -10,7 +9,7 @@ from sqlalchemy import select
 
 from guru import kb
 
-from . import ingest, jobs, sessions, settings, storage
+from . import jobs, sessions, settings, storage
 from .bg import spawn
 from .db import SessionLocal, SessionRow, engine
 
@@ -20,13 +19,11 @@ async def lifespan(app: FastAPI):
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)-7s %(name)s %(message)s")
     await storage.ensure_bucket()
     await kb.ensure_collection()
-    ingest.pool = ProcessPoolExecutor(max_workers=2)
     await jobs.requeue_unfinished()
     async with SessionLocal() as db:
         for sid in await db.scalars(select(SessionRow.id).where(SessionRow.score_status == "scoring")):
             spawn(sessions.score(sid))
     yield
-    ingest.pool.shutdown(cancel_futures=True)
     await engine.dispose()
 
 

@@ -1,14 +1,24 @@
-%% Postgres schema (backend/app/db.py, migration backend/migrations/versions/0001_initial.py)
+%% Postgres schema (backend/app/db.py, migrations backend/migrations/versions/)
 erDiagram
-  jobs ||--o{ kb_sources : "knowledge base"
+  companies ||--o{ jobs : "roles"
+  companies ||--o{ kb_sources : "knowledge base, shared by its roles"
+  kb_sources ||--o{ outbox : "tasks to publish"
   jobs ||--o| interview_plans : "latest plan"
   jobs ||--o{ interview_sessions : "interview links"
+
+  companies {
+    string id PK "cmp_..."
+    string org_id "indexed, org_default until auth"
+    string name "renaming makes its roles' plans stale"
+    timestamptz created_at
+    timestamptz updated_at
+  }
 
   jobs {
     string id PK "job_..."
     string org_id "indexed, org_default until auth"
+    string company_id FK "cascade delete"
     string title
-    string company_name
     text jd_text
     int max_duration_sec "300 to 3600, default 600"
     jsonb questions "question bank"
@@ -21,18 +31,30 @@ erDiagram
   kb_sources {
     string id PK "src_..."
     string org_id
-    string job_id FK "cascade delete"
+    string company_id FK "cascade delete"
     string kind "pdf, docx, txt, md, csv, url"
     string name "file name or URL"
-    string s3_key "org/job/src/file, files only"
+    string s3_key "org/company/src/file, files only"
     text url "links only"
     int size_bytes
     string sha256 "indexed, duplicate check"
-    string status "uploading to ready, failed, duplicate"
+    string status "uploading, queued, parsing, parsed, embedding, ready, failed, duplicate"
+    jsonb parsed_chunks "parse output until embedded, then cleared"
+    timestamptz updated_at "last stage change, for the stuck-source sweeper"
     text error
     int chunks "points in Qdrant"
     text excerpt "feeds the planner"
     timestamptz created_at
+  }
+
+  outbox {
+    bigint id PK "publish order"
+    string task "parse, embed"
+    string source_id FK "cascade delete"
+    timestamptz created_at "same commit as the source's stage change"
+    timestamptz sent_at "null until the relay publishes it; sent rows kept 7 days"
+    int attempts "failed publishes"
+    text last_error
   }
 
   interview_plans {
@@ -49,6 +71,7 @@ erDiagram
     string org_id
     string job_id FK "cascade delete"
     string candidate_name
+    timestamptz invite_expires_at "link expiry until the interview starts"
     string room_name "new per try until the agent starts"
     string status "created, active, completed, declined"
     jsonb plan "snapshot at link creation"
