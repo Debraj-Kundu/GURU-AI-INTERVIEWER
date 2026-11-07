@@ -17,7 +17,7 @@ from fastembed import SparseTextEmbedding
 from qdrant_client import AsyncQdrantClient, models
 
 from . import config, llm, prompts
-from .models import Job, ScopeLabel
+from .models import JobRole, ScopeLabel
 
 CHUNK_CHARS = 2000  # ~512 tokens (Azure AI Search starting point)
 OVERLAP_PARAS = 1  # carry the last paragraph into the next chunk (~15-25% overlap)
@@ -72,7 +72,7 @@ def qdrant() -> AsyncQdrantClient:
     return AsyncQdrantClient(url=config.QDRANT_URL, api_key=config.QDRANT_API_KEY, timeout=5)
 
 
-def kb_id(job: Job) -> str:
+def kb_id(job: JobRole) -> str:
     """Knowledge bases belong to a company and are shared by its roles."""
     return job.company_id or job.id
 
@@ -133,7 +133,7 @@ async def delete_source(org_id: str, source_id: str) -> None:
     )
 
 
-async def search(job: Job, question: str) -> tuple[float, list[dict]]:
+async def search(job: JobRole, question: str) -> tuple[float, list[dict]]:
     """Hybrid (dense + BM25, RRF-fused) search scoped to the job's company. Also returns the best dense
     cosine score, because RRF scores are rank-based and useless as a relevance threshold."""
     [dense] = await llm.embed([question])
@@ -165,7 +165,7 @@ async def search(job: Job, question: str) -> tuple[float, list[dict]]:
     return top, [p.payload or {} for p in fused.points]
 
 
-async def lookup(job: Job, allowed_tech: list[str], question: str, session_id: str = "") -> dict:
+async def lookup(job: JobRole, allowed_tech: list[str], question: str, session_id: str = "") -> dict:
     """Three-layer grounding (PLAN §3.8). Scope check and retrieval run in parallel."""
     async with asyncio.TaskGroup() as tg:
         scope_t = tg.create_task(
@@ -191,7 +191,7 @@ async def lookup(job: Job, allowed_tech: list[str], question: str, session_id: s
     }
 
 
-async def seed(job: Job, kb_dir: Path) -> None:
+async def seed(job: JobRole, kb_dir: Path) -> None:
     await ensure_collection()
     for path in sorted(kb_dir.glob("*")):
         if path.suffix.lower() not in (".md", ".txt"):
@@ -207,7 +207,7 @@ def main() -> None:
     ap.add_argument("job", type=Path)
     ap.add_argument("kb_dir", type=Path)
     args = ap.parse_args()
-    job = Job.model_validate_json(args.job.read_text(encoding="utf-8"))
+    job = JobRole.model_validate_json(args.job.read_text(encoding="utf-8"))
     asyncio.run(seed(job, args.kb_dir))
 
 

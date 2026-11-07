@@ -9,7 +9,7 @@ import json
 from pathlib import Path
 
 from . import config, llm, prompts
-from .models import InterviewPlan, Job, Plan, SkippedQuestion
+from .models import InterviewPlan, JobRole, Plan, SkippedQuestion
 
 MAX_GAP_QUESTIONS = 1
 COMPANY_SUMMARY_CHARS = 4000
@@ -28,7 +28,7 @@ def fit_to_time(plan: InterviewPlan, budget_sec: int) -> InterviewPlan:
     return plan
 
 
-async def make_plan(job: Job, company_summary: str) -> InterviewPlan:
+async def make_plan(job: JobRole, company_summary: str) -> InterviewPlan:
     prompt = prompts.PLANNER.format(
         max_duration_sec=job.max_duration_sec,
         closing_sec=config.CLOSING_SEC,
@@ -55,7 +55,7 @@ def main() -> None:
     ap.add_argument("--out", type=Path, default=config.PLAN_PATH)
     args = ap.parse_args()
 
-    job = Job.model_validate_json(args.job.read_text(encoding="utf-8"))
+    job = JobRole.model_validate_json(args.job.read_text(encoding="utf-8"))
     summary = "\n\n".join(p.read_text(encoding="utf-8") for p in sorted(args.kb_dir.glob("*")))
     plan = asyncio.run(make_plan(job, summary))
     args.out.write_text(Plan(job=job, plan=plan).model_dump_json(indent=2), encoding="utf-8")

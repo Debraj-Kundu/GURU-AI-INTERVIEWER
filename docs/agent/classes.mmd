@@ -2,17 +2,17 @@ classDiagram
   direction LR
 
   %% ---------- Inputs: job setup ----------
-  class Job {
+  class JobRole {
     +id: str
     +org_id: str
     +title: str
     +company_name: str
     +jd_text: str
     +max_duration_sec: int = 600 (300 to 3600)
-    +questions: list~BankQuestion~
+    +questions: list~QuestionBank~
     +criteria: list~Criterion~
   }
-  class BankQuestion {
+  class QuestionBank {
     +text: str
     +category: str
     +difficulty: str
@@ -28,7 +28,7 @@ classDiagram
 
   %% ---------- Planner output ----------
   class Plan {
-    +job: Job
+    +job: JobRole
     +plan: InterviewPlan
   }
   class InterviewPlan {
@@ -111,9 +111,9 @@ classDiagram
   }
 
   %% ---------- Relationships ----------
-  Job "1" *-- "*" BankQuestion : questions
-  Job "1" *-- "*" Criterion : criteria
-  Plan "1" *-- "1" Job : job
+  JobRole "1" *-- "*" QuestionBank : questions
+  JobRole "1" *-- "*" Criterion : criteria
+  Plan "1" *-- "1" JobRole : job
   Plan "1" *-- "1" InterviewPlan : plan
   InterviewPlan "1" *-- "*" PlannedQuestion : questions
   InterviewPlan "1" *-- "*" SkippedQuestion : skipped_questions

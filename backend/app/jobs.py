@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from guru import kb
 from guru.jsonlog import jlog, logged
-from guru.models import BankQuestion, Criterion, Plan
+from guru.models import QuestionBank, Criterion, Plan
 from guru.planner import make_plan
 
 from . import settings, storage
@@ -96,7 +96,7 @@ class JobIn(BaseModel):
     title: str = Field(min_length=1, max_length=200)
     jd_text: str = Field(min_length=1, max_length=50_000)
     max_duration_sec: int = Field(600, ge=300, le=3600)
-    questions: list[BankQuestion] = []
+    questions: list[QuestionBank] = []
     criteria: list[Criterion] = []
 
     @field_validator("criteria")
@@ -182,7 +182,7 @@ async def import_questions(file: UploadFile):
         if not text:
             continue
         get = lambda k: (row.get(cols[k]) or "").strip() if k in cols else ""  # noqa: E731
-        out.append(BankQuestion(
+        out.append(QuestionBank(
             text=text, category=get("category"), difficulty=get("difficulty"),
             expected_signals=[s.strip() for s in get("expected_signals").split(";") if s.strip()],
         ))

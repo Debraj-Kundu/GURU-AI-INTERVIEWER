@@ -5,6 +5,8 @@ knowledge base), Guru plans the interview, and a candidate joins an audio-only c
 link. A LiveKit voice agent runs the interview; afterwards the transcript is scored per criterion
 for the recruiter to review. Scores are advisory and need a human decision.
 
+![Recruiter dashboard: a role's interview plan with completed, scored interviews](docs/screenshots/recruiter-dashboard.png)
+
 | Folder | What | Stack |
 |---|---|---|
 | [`web/`](web/) | Recruiter dashboard and the candidate interview page | Next.js 15, TypeScript, LiveKit Agents UI |
@@ -81,7 +83,7 @@ flowchart LR
 | **Outbox relay** | Every stage change that needs a task commits an `outbox` row with it; the relay publishes unsent rows to Redis every second, so no task is lost between Postgres and Redis. Delivery is at least once and every stage skips work already done. It also re-queues sources whose published task was lost, and deletes sent rows after 7 days. |
 | **Floci** | Local S3 emulator; uploads go browser → S3 directly. Swap for AWS S3 by changing `S3_ENDPOINT` and keys. |
 | **Qdrant** | Company knowledge base (one collection, `kb_chunks`, filtered by `org_id` and `kb_id` = the company id), dense + BM25 vectors. Never holds candidate data. |
-| **LLMs** | OpenRouter (`openai/gpt-6-luna`) for every text call; Gemini as fallback and for embeddings. |
+| **LLMs** | The live interviewer uses Gemini (`gemini-3.5-flash-lite`) first, falling back to OpenRouter; it reached the first token faster in `agent/evals/voice_llm_eval.py`. Every other text call (planner, Observer, scope check, scorer) uses OpenRouter (`openai/gpt-6-luna`) first with Gemini as fallback. Gemini also does embeddings. |
 
 Interactive version with pan, zoom and guided views: open
 [docs/architecture/system.html](docs/architecture/system.html) in a browser (after cloning).
@@ -523,10 +525,11 @@ Ports used: `3000` web, `8080` API, `5432` Postgres, `4566` Floci, `6379` Redis.
 
 ### 1. Start Postgres, S3 and Redis
 
-From the repo root:
+From the repo root (naming the services starts only the infrastructure; a bare `up` would also start
+the app containers, see "Run everything in Docker" below):
 
 ```bash
-docker compose -f deploy/docker-compose.yml up -d
+docker compose -f deploy/docker-compose.yml up -d postgres floci redis
 ```
 
 ```bash
@@ -551,6 +554,38 @@ python -c "import secrets; print(secrets.token_urlsafe(32))"
 ```
 
 The backend reads `agent/.env` too, so keys live in one place. Never commit `.env` files.
+
+### Run everything in Docker (instead of steps 3 to 5)
+
+With `agent/.env` filled in (step 2) and `backend/.env` copied from its example, one command builds
+and starts the database, S3, Redis, API, outbox relay, both ingest workers, the agent and the web
+app:
+
+```bash
+cp backend/.env.example backend/.env
+```
+
+```bash
+docker compose -f deploy/docker-compose.yml up -d --build
+```
+
+```bash
+docker compose -f deploy/docker-compose.yml logs -f api agent
+```
+
+- Open http://localhost:3000 (API docs: http://localhost:8080/docs). The API runs the migrations on
+  start; the other services wait until it's healthy.
+- Images contain the code, so rerun `up -d --build` after a change. Only the changed images rebuild.
+- Each part has its own `Dockerfile` in `agent/`, `backend/` and `web/`. The backend builds from the
+  repo root (it installs `../agent`), so its ignore rules live in `backend/Dockerfile.dockerignore`;
+  Docker ignores a `backend/.dockerignore` for that build, so keep the name or `.env` files get
+  copied into the image.
+- `.env` files are passed in at run time and never copied into an image. Inside the network the
+  services use container addresses (`postgres`, `floci`, `redis`, `api`), set in the compose file.
+- The agent runs in production mode (`start`) limited to 2 CPUs, so it keeps 2 warm processes
+  (about 250 MB each) for interviews.
+- The web app's API address is fixed at build time (`http://localhost:8080`).
+- Don't also run the servers from steps 3 to 5: ports 8080 and 3000 would clash.
 
 ### 3. Run the API
 

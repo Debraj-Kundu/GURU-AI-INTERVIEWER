@@ -14,6 +14,9 @@ from guru import config as guru_config  # noqa: E402,F401  (loads agent/.env)
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+asyncpg://guru:guru@localhost:5432/guru")
 
 S3_ENDPOINT = os.getenv("S3_ENDPOINT") or None  # None = real AWS S3
+# Where the browser reaches S3 for presigned uploads; differs from S3_ENDPOINT when the API runs in
+# Docker (http://floci:4566 inside, http://localhost:4566 from the browser).
+S3_PUBLIC_ENDPOINT = os.getenv("S3_PUBLIC_ENDPOINT") or S3_ENDPOINT
 S3_REGION = os.getenv("S3_REGION", "us-east-1")
 S3_ACCESS_KEY = os.getenv("S3_ACCESS_KEY")
 S3_SECRET_KEY = os.getenv("S3_SECRET_KEY")
