@@ -10,11 +10,15 @@ from botocore.exceptions import ClientError
 from . import settings
 
 
-@cache
 def s3():
+    return _client(settings.S3_ENDPOINT)
+
+
+@cache  # one client per endpoint: the API's own, and the browser-facing one for presigned URLs
+def _client(endpoint: str | None):
     return boto3.client(
         "s3",
-        endpoint_url=settings.S3_ENDPOINT,
+        endpoint_url=endpoint,
         region_name=settings.S3_REGION,
         aws_access_key_id=settings.S3_ACCESS_KEY,
         aws_secret_access_key=settings.S3_SECRET_KEY,
@@ -45,7 +49,8 @@ async def ensure_bucket() -> None:
 
 def presign_put(key: str, content_type: str, expires: int = 600) -> str:
     """URL the browser PUTs the file to directly; the API never proxies upload bytes (PLAN §4.3)."""
-    return s3().generate_presigned_url(
+    # Signed for the address the browser uses, which differs from the API's when it runs in Docker.
+    return _client(settings.S3_PUBLIC_ENDPOINT).generate_presigned_url(
         "put_object",
         Params={"Bucket": settings.S3_BUCKET, "Key": key, "ContentType": content_type},
         ExpiresIn=expires,

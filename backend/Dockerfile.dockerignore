@@ -1,0 +1,14 @@
+# Ignore rules for backend/Dockerfile. Its build context is the repo root, so Docker reads this
+# file (named after the Dockerfile), NOT backend/.dockerignore. Keep the name, or .env secrets leak in.
+# No '!' exceptions: one forces Docker to walk every excluded folder (.venv, node_modules).
+**/.env
+**/.env.*
+**/.venv
+**/__pycache__
+**/.pytest_cache
+**/node_modules
+.git
+web
+docs
+agent/logs
+agent/out

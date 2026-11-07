@@ -9,7 +9,8 @@ ROOT = Path(__file__).resolve().parent.parent
 load_dotenv(ROOT / ".env")
 
 # Models (PLAN §1). Override via env if a provider renames/retires one.
-# Every text LLM call tries OpenRouter first; the Gemini model for that role is the fallback.
+# Text LLM calls try OpenRouter first and fall back to the Gemini model for that role, except the
+# live interviewer, which tries Gemini (INTERVIEWER_MODEL) first because it's faster (interviewer.voice_llms).
 OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "openai/gpt-6-luna")
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 INTERVIEWER_MODEL = os.getenv("INTERVIEWER_MODEL", "gemini-3.5-flash-lite")

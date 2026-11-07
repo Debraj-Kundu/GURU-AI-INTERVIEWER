@@ -3,7 +3,7 @@
 
 export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080';
 
-export type BankQuestion = {
+export type QuestionBank = {
   text: string;
   category: string;
   difficulty: string;
@@ -30,7 +30,7 @@ export type JobInput = {
   title: string;
   jd_text: string;
   max_duration_sec: number;
-  questions: BankQuestion[];
+  questions: QuestionBank[];
   criteria: Criterion[];
 };
 
@@ -199,7 +199,7 @@ export const api = {
   importQuestions: (file: File) => {
     const form = new FormData();
     form.append('file', file);
-    return request<BankQuestion[]>('/questions/import', { method: 'POST', body: form });
+    return request<QuestionBank[]>('/questions/import', { method: 'POST', body: form });
   },
 
   listSources: (companyId: string) => request<Source[]>(`/companies/${companyId}/sources`),

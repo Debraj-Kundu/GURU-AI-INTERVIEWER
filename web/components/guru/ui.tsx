@@ -39,12 +39,13 @@ export function Card({ className, ...props }: React.ComponentProps<'section'>) {
   return <section className={cn('bg-card rounded-xl border p-5', className)} {...props} />;
 }
 
+// Solid fill, same-colour border, white text.
 const tones = {
-  neutral: 'border-border text-muted-foreground',
-  busy: 'border-sky-600/30 text-sky-700 dark:text-sky-300',
-  good: 'border-emerald-600/30 text-emerald-700 dark:text-emerald-300',
-  warn: 'border-amber-600/30 text-amber-700 dark:text-amber-300',
-  bad: 'border-red-600/30 text-red-700 dark:text-red-300',
+  neutral: 'border-zinc-500 bg-zinc-500',
+  busy: 'border-sky-500 bg-sky-500',
+  good: 'border-emerald-500 bg-emerald-500',
+  warn: 'border-amber-500 bg-amber-500',
+  bad: 'border-red-500 bg-red-500',
 };
 
 export type Tone = keyof typeof tones;
@@ -53,7 +54,7 @@ export function Badge({ tone = 'neutral', children }: { tone?: Tone; children: R
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 font-mono text-[10px] tracking-wider uppercase',
+        'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 font-mono text-[10px] tracking-wider text-white uppercase',
         tones[tone]
       )}
     >

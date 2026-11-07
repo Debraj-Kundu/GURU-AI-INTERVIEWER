@@ -4,7 +4,7 @@ import { useRef, useState } from 'react';
 import { PlusIcon, TrashIcon, UploadSimpleIcon } from '@phosphor-icons/react';
 import { Card, ErrorText, Field, Input, Textarea } from '@/components/guru/ui';
 import { Button } from '@/components/ui/button';
-import { type BankQuestion, type Criterion, type JobInput, api } from '@/lib/api';
+import { type Criterion, type JobInput, type QuestionBank, api } from '@/lib/api';
 
 type SectionProps = { value: JobInput; onChange: (v: JobInput) => void };
 
@@ -81,7 +81,7 @@ export function normalizeJob(j: JobInput): JobInput {
 export function QuestionsSection({ value, onChange }: SectionProps) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState('');
-  const set = (i: number, q: Partial<BankQuestion>) =>
+  const set = (i: number, q: Partial<QuestionBank>) =>
     onChange({
       ...value,
       questions: value.questions.map((x, k) => (k === i ? { ...x, ...q } : x)),

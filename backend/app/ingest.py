@@ -18,7 +18,7 @@ from sqlalchemy.orm import undefer
 
 from guru import kb
 from guru.jsonlog import jlog, logged
-from guru.models import Job
+from guru.models import JobRole
 
 from . import storage
 from .db import JobRow, OutboxRow, SessionLocal, SourceRow
@@ -26,9 +26,9 @@ from .fetch import fetch_page
 from .parsers import ParseError, parse
 
 
-def guru_job(job: JobRow) -> Job:
-    """The agent package's Job model, built from a DB row (company loaded with it)."""
-    return Job(
+def guru_job(job: JobRow) -> JobRole:
+    """The agent package's JobRole model, built from a DB row (company loaded with it)."""
+    return JobRole(
         id=job.id,
         org_id=job.org_id,
         title=job.title,

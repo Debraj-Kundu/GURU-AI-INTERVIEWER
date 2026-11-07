@@ -5,7 +5,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 
-class BankQuestion(BaseModel):
+class QuestionBank(BaseModel):
     text: str
     category: str = ""
     difficulty: str = ""
@@ -20,7 +20,7 @@ class Criterion(BaseModel):
     anchors: dict[str, str]  # "1".."5" -> behaviour at that level
 
 
-class Job(BaseModel):
+class JobRole(BaseModel):
     id: str
     org_id: str
     title: str
@@ -28,7 +28,7 @@ class Job(BaseModel):
     company_id: str = ""  # whose knowledge base the interviewer searches; "" = this job's own (fixtures)
     jd_text: str
     max_duration_sec: int = Field(600, ge=300, le=3600)
-    questions: list[BankQuestion]
+    questions: list[QuestionBank]
     criteria: list[Criterion]
 
 
@@ -54,7 +54,7 @@ class InterviewPlan(BaseModel):
 class Plan(BaseModel):
     """What the interviewer loads: the job plus the planner's output."""
 
-    job: Job
+    job: JobRole
     plan: InterviewPlan
 
 

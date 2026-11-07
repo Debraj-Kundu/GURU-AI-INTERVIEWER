@@ -6,11 +6,11 @@ from pathlib import Path
 from guru import config
 from guru.interviewer import State, interviewer_instructions
 from guru.kb import CHUNK_CHARS, chunk
-from guru.models import CriterionScore, InterviewPlan, Job, Plan, PlannedQuestion
+from guru.models import CriterionScore, InterviewPlan, JobRole, Plan, PlannedQuestion
 from guru.planner import fit_to_time
 from guru.scorer import aggregate
 
-JOB = Job.model_validate_json(Path("fixtures/job.json").read_text(encoding="utf-8"))
+JOB = JobRole.model_validate_json(Path("fixtures/job.json").read_text(encoding="utf-8"))
 
 
 def q(text, sec):

@@ -27,7 +27,7 @@
           "plan",
           "job",
           "interviewplan",
-          "bankquestion",
+          "QuestionBank",
           "criterion",
           "plannedquestion",
           "skippedquestion"
@@ -198,9 +198,9 @@
       "tag": "models.py:47"
     },
     {
-      "id": "bankquestion",
+      "id": "QuestionBank",
       "type": "frontend",
-      "label": "BankQuestion",
+      "label": "QuestionBank",
       "sublabel": "BaseModel",
       "pos": [
         40,
@@ -279,7 +279,7 @@
         "scopelabel",
         "job",
         "interviewplan",
-        "bankquestion",
+        "QuestionBank",
         "criterion",
         "plannedquestion",
         "skippedquestion"
@@ -371,9 +371,9 @@
       "toSide": "top"
     },
     {
-      "id": "job-bankquestion",
+      "id": "job-QuestionBank",
       "from": "job",
-      "to": "bankquestion",
+      "to": "QuestionBank",
       "label": "questions[]",
       "variant": "default",
       "fromSide": "bottom",
@@ -481,7 +481,7 @@
         "company_name: str",
         "jd_text: str",
         "max_duration_sec: int = 600 (300..3600)",
-        "questions: list[BankQuestion]",
+        "questions: list[QuestionBank]",
         "criteria: list[Criterion]"
       ]
     },
@@ -496,7 +496,7 @@
     },
     {
       "dot": "cyan",
-      "title": "BankQuestion  ·  models.py",
+      "title": "QuestionBank  ·  models.py",
       "items": [
         "text: str",
         "category: str = \"\"",

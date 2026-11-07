@@ -207,7 +207,7 @@ class InterviewerAgent(Agent):
             )
             # Bare agent, no message: a message makes LiveKit generate a reply here AND in
             # ClosingAgent.on_enter, so the candidate heard two closings.
-            return ClosingAgent(s)
+            return ClosingAgent(s, "time_up" if s.time_up else "completed")
         s.idx += 1
         s.answers, s.note = [], ""
         s.question_started_at = time.monotonic()
@@ -242,18 +242,28 @@ class InterviewerAgent(Agent):
             function_name="candidate_wants_to_end",
             output={"at_question": self.s.idx + 1, "of": len(self.s.plan.plan.questions)},
         )
-        return ClosingAgent(self.s)  # bare handoff: only ClosingAgent.on_enter speaks
+        return ClosingAgent(self.s, "candidate_ended")  # bare handoff: only ClosingAgent.on_enter speaks
+
+
+# The closing agent starts with an empty chat history, so it's told how the interview ended;
+# otherwise a candidate who quit at question 2 is thanked as if they'd finished.
+ENDINGS = {
+    "completed": "the candidate answered every planned question.",
+    "time_up": "the time limit was reached before every planned question was asked. Don't apologise at length.",
+    "candidate_ended": "the candidate asked to stop early. Respect that: don't ask why or try to continue the interview.",
+}
 
 
 class ClosingAgent(Agent):
     @logged
-    def __init__(self, s: State) -> None:
+    def __init__(self, s: State, ending: str) -> None:
         self.s = s
         job = s.plan.job
         super().__init__(
             instructions=prompts.CLOSING.format(
                 job_title=job.title,
                 company_name=job.company_name,
+                ending=ENDINGS[ending],
                 allowed_tech_stack=", ".join(s.plan.plan.allowed_tech_stack),
             )
         )
@@ -346,10 +356,22 @@ def observe_latest(session: AgentSession, agent: InterviewerAgent) -> None:
     s.observing[s.idx] = spawn(observe(session, agent, "\n".join(s.answers)))
 
 
-def build_llm() -> llm.LLM:
+def voice_llms() -> list[llm.LLM]:
+    """The voice LLMs in fallback order (evals/voice_llm_eval.py times each one)."""
     if not config.OPENROUTER_API_KEY:  # same check with_openrouter() made; avoids falling back to OPENAI_API_KEY
         raise ValueError("OPENROUTER_API_KEY is required")
     llms: list[llm.LLM] = [
+        # Gemini first: in evals/voice_llm_eval.py it reached the first token in 1.24 s p50 / 1.60 s p95
+        # against 1.91 s / 4.69 s for OpenRouter, with the same turn decisions (32/32 each).
+        # ponytail: a free-tier key allows 15 requests/min on this model, about 2-3 live interviews;
+        # beyond that a 429 falls through to OpenRouter. Use a paid tier for more.
+        google.LLM(
+            model=config.INTERVIEWER_MODEL,
+            temperature=0.4,
+            thinking_config=types.ThinkingConfig(
+                                    thinking_level=types.ThinkingLevel(config.INTERVIEWER_THINKING.upper())),
+            max_output_tokens=config.VOICE_MAX_TOKENS,  # same runaway cap as the OpenRouter entry
+        ),
         # Plain LLM, not with_openrouter(), which has no max_completion_tokens.
         openai.LLM(
             model=config.OPENROUTER_MODEL,
@@ -364,15 +386,13 @@ def build_llm() -> llm.LLM:
             reasoning_effort=config.INTERVIEWER_THINKING,  # type: ignore[arg-type]  # validated by the API
             max_completion_tokens=config.VOICE_MAX_TOKENS,
         ),
-        google.LLM(
-            model=config.INTERVIEWER_MODEL,
-            temperature=0.4,
-            thinking_config=types.ThinkingConfig(
-                                    thinking_level=types.ThinkingLevel(config.INTERVIEWER_THINKING.upper())),
-        ),
     ]
+    return llms
+
+
+def build_llm() -> llm.LLM:
     # Gemini rejects request deadlines under 10 s; the adapter's 5 s default fails every call.
-    return llm.FallbackAdapter(llms, attempt_timeout=10.0)
+    return llm.FallbackAdapter(voice_llms(), attempt_timeout=10.0)
 
 
 def build_session(proc: JobProcess, keyterms: list[str]) -> AgentSession:
@@ -395,6 +415,10 @@ def build_session(proc: JobProcess, keyterms: list[str]) -> AgentSession:
         turn_handling=TurnHandlingOptions(
             turn_detection="stt",
             endpointing={"min_delay": config.ENDPOINTING_MIN_DELAY},
+            # Explicit: unset, the SDK uses adaptive only on LiveKit Cloud or in dev mode and silently
+            # falls back to VAD in a self-hosted production worker, where "mm-hmm" cuts the interviewer
+            # off. Self-hosted use counts toward LiveKit's 40k requests/month development allowance.
+            interruption={"mode": "adaptive"},
             preemptive_generation={
                 "enabled": True,
                 "preemptive_tts": False,  # never synthesise or speak before the turn is confirmed

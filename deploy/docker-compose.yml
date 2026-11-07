@@ -1,6 +1,24 @@
-# Local dev infrastructure (PLAN §4.1 subset). The API, agent, and web run on the host for now.
-# Start: docker compose -f deploy/docker-compose.yml up -d
+# Local stack (PLAN §4.1 subset): infrastructure plus the app, built from this checkout.
+#   Start or rebuild after code changes:  docker compose -f deploy/docker-compose.yml up -d --build
+#   Logs:                                 docker compose -f deploy/docker-compose.yml logs -f api agent
+#   Stop:                                 docker compose -f deploy/docker-compose.yml down
+# Needs backend/.env and agent/.env (secrets come in through env_file, never baked into images).
 # Qdrant stays on Qdrant Cloud and LiveKit on LiveKit Cloud.
+#
+# Shared settings for the backend services: env files first, then container addresses, which win
+# over the localhost values in backend/.env (and load_dotenv never overrides them).
+x-backend: &backend
+  image: guru-backend  # built once by the api service; the others reuse it
+  pull_policy: never
+  env_file: [../agent/.env, ../backend/.env]
+  environment:
+    DATABASE_URL: postgresql+asyncpg://guru:guru@postgres:5432/guru
+    S3_ENDPOINT: http://floci:4566
+    S3_PUBLIC_ENDPOINT: http://localhost:4566  # presigned upload URLs are used by the browser
+    REDIS_URL: redis://redis:6379/0
+    WEB_ORIGIN: http://localhost:3000
+  restart: unless-stopped
+
 services:
   postgres:
     image: postgres:18
@@ -40,6 +58,57 @@ services:
     command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
     ports: ["127.0.0.1:6379:6379"]
     volumes: [redisdata:/data]
+    restart: unless-stopped
+
+  # ---------- app ----------
+  api:
+    <<: *backend
+    build: {context: .., dockerfile: backend/Dockerfile}  # repo root: the backend installs ../agent
+    # Only the API migrates; the others wait for it to be healthy.
+    command: ["sh", "-c", "alembic upgrade head && fastapi run app/main.py --port 8080"]
+    ports: ["127.0.0.1:8080:8080"]
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_started}
+      floci: {condition: service_started}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/healthz')"]
+      interval: 5s
+      retries: 20
+      start_period: 20s
+
+  relay:
+    <<: *backend
+    command: ["python", "-m", "app.relay"]
+    depends_on: {api: {condition: service_healthy}}
+
+  # Linux, so the default prefork pool (no --pool=solo); 2 processes each.
+  parse-worker:
+    <<: *backend
+    command: ["celery", "-A", "app.worker", "worker", "-Q", "parse", "-n", "parse@%h", "--concurrency=2", "--loglevel=info"]
+    depends_on: {api: {condition: service_healthy}}
+
+  embed-worker:
+    <<: *backend
+    command: ["celery", "-A", "app.worker", "worker", "-Q", "embed", "-n", "embed@%h", "--concurrency=2", "--loglevel=info"]
+    depends_on: {api: {condition: service_healthy}}
+
+  agent:
+    build: ../agent
+    image: guru-agent
+    env_file: [../agent/.env]
+    environment:
+      GURU_API_URL: http://api:8080
+    # Production mode keeps one warm process per CPU (~250 MB each); 2 CPUs = 2 warm interviews.
+    cpus: 2
+    depends_on: {api: {condition: service_healthy}}
+    restart: unless-stopped
+
+  web:
+    build: ../web
+    image: guru-web
+    ports: ["127.0.0.1:3000:3000"]
+    depends_on: [api]
     restart: unless-stopped
 
 volumes:
