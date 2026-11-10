@@ -3,17 +3,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { ArrowClockwiseIcon, CopyIcon, LinkIcon } from '@phosphor-icons/react';
-import {
-  Card,
-  ErrorText,
-  Input,
-  StatusBadge,
-  Tabs,
-  formatDuration,
-  usePoll,
-} from '@/components/guru/ui';
+import { Card, ErrorText, Input, StatusBadge, Tabs, formatDuration } from '@/components/guru/ui';
 import { Button } from '@/components/ui/button';
-import { type SessionSummary, api } from '@/lib/api';
+import { API_URL, type SessionSummary, api } from '@/lib/api';
 
 export function InterviewsPanel({ jobId, canCreate }: { jobId: string; canCreate: boolean }) {
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
@@ -33,12 +25,15 @@ export function InterviewsPanel({ jobId, canCreate }: { jobId: string; canCreate
       () => {}
     );
   }, []);
-  // Live interviews end and get scored in the background; keep the list fresh while that happens.
-  usePoll(
-    load,
-    sessions.some((s) => s.status === 'active' || s.score_status === 'scoring'),
-    5000
-  );
+  // Interviews start, end and get scored in the background. The API pushes each change over
+  // server-sent events; reload on every event and on every (re)connect, so a change made while
+  // the stream was down is still picked up.
+  useEffect(() => {
+    const events = new EventSource(`${API_URL}/jobs/${jobId}/sessions/events`);
+    events.onopen = load;
+    events.onmessage = load;
+    return () => events.close();
+  }, [jobId, load]);
 
   const isUpcoming = (s: SessionSummary) =>
     (s.status === 'created' && !s.expired) || s.status === 'active';

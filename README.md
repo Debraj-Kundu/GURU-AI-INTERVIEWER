@@ -78,7 +78,7 @@ flowchart LR
 |---|---|
 | **Web** | Recruiter screens (job editor, knowledge base, plan preview, interview links, session review) and the candidate page (consent, mic check, audio room). Calls only the API; it never holds LiveKit keys. |
 | **API** | Source of truth in Postgres. Issues presigned upload URLs and LiveKit tokens, queues knowledge-base ingestion for the workers, runs plan generation and scoring in-process, and exposes `/internal/*` to the agent behind a service token. |
-| **Agent** | One process per interview. Claims the session (`POST /internal/sessions/{id}/start`), runs consent, questions and follow-ups, and the closing Q&A, then posts the transcript and Observer notes back (`/complete`). |
+| **Agent** | One process per interview. Claims the session (`POST /internal/sessions/{id}/start`), runs consent, questions and follow-ups, and the closing Q&A, then sends the transcript and Observer notes back as a queued webhook (`/complete`, delivered by the webhook worker, so an API outage loses nothing). |
 | **Workers** | Celery over Redis, one worker per stage: the parse worker fetches, dedupes and parses a source and saves its chunks; the embed worker embeds them into Qdrant. Each source's stage lives in Postgres, so a retry resumes after the last stage that succeeded. |
 | **Outbox relay** | Every stage change that needs a task commits an `outbox` row with it; the relay publishes unsent rows to Redis every second, so no task is lost between Postgres and Redis. Delivery is at least once and every stage skips work already done. It also re-queues sources whose published task was lost, and deletes sent rows after 7 days. |
 | **Floci** | Local S3 emulator; uploads go browser → S3 directly. Swap for AWS S3 by changing `S3_ENDPOINT` and keys. |
@@ -273,7 +273,7 @@ sequenceDiagram
   end
   G->>C: ConsentTask (voice)
   alt consent declined, or session ends first
-    G->>A: POST /internal/sessions/{id}/complete {consented: false}
+    G->>A: completion webhook {consented: false} (queued, see below)
     A->>DB: status=declined, nothing kept
   else consent given
     loop each planned question
@@ -285,11 +285,13 @@ sequenceDiagram
       end
     end
     G->>G: ClosingAgent, timer or candidate_wants_to_end
-    G->>A: POST /internal/sessions/{id}/complete {turns, notes, usage, duration_sec}
+    G->>A: completion webhook {turns, notes, usage, duration_sec} (queued, see below)
     A->>DB: status=completed, score_status=scoring
-    A->>A: spawn(score(id)): scorer.score_session via OpenRouter flex
+    A->>A: spawn(score(id)): scorer.score_session, every criterion on one model
     A->>DB: score, score_status=scored (or failed)
   end
+  Note over G,A: The webhook goes agent → Redis queue "webhooks" (no expiry) → webhook worker →<br/>POST /internal/sessions/{id}/complete, retried until a 2xx (5 s doubling to 5 min).<br/>Idempotent: a repeat after success is a no-op. Redis down: the agent posts directly.
+  Note over A,R: Every session change also sends Postgres NOTIFY in the same commit; the recruiter page<br/>listens on GET /jobs/{id}/sessions/events (SSE) and reloads, so no polling.
   R->>A: GET /sessions/{id} (session-review.tsx), optional POST /sessions/{id}/score
 ```
 
@@ -600,9 +602,10 @@ uv run fastapi dev app/main.py --port 8080
 `backend/.env` already matches the Compose services. API docs: http://localhost:8080/docs. On start
 the API creates the S3 bucket and the Qdrant collection if they're missing.
 
-### 3b. Run the outbox relay and the ingest workers (three new terminals)
+### 3b. Run the outbox relay and the workers (four new terminals)
 
-The relay publishes queued work from Postgres to Redis; two Celery workers parse and embed it:
+The relay publishes queued work from Postgres to Redis; two Celery workers parse and embed it, and
+the webhook worker delivers finished interviews from the agent to the API:
 
 ```bash
 cd backend
@@ -617,6 +620,11 @@ uv run celery -A app.worker worker -Q parse -n parse@%h --pool=solo --loglevel=i
 ```bash
 cd backend
 uv run celery -A app.worker worker -Q embed -n embed@%h --pool=solo --loglevel=info
+```
+
+```bash
+cd backend
+uv run celery -A app.worker worker -Q webhooks -n webhooks@%h --pool=solo --loglevel=info
 ```
 
 `--pool=solo` is needed on Windows (one task at a time per worker); on Linux drop it to use the
@@ -684,6 +692,7 @@ docker compose -f deploy/docker-compose.yml down -v
 | Candidate page: "We couldn't start your interview" | No agent joined within about 20 s. Start the agent (step 4) and wait for `registered worker`, then click **Try again**. |
 | Agent joins and leaves at once, log says `Interview already started or ended` | That interview link was already used. Create a new link. |
 | Browser calls `localhost:8000` or gets CORS errors | The web app was built before `NEXT_PUBLIC_API_URL` changed. `NEXT_PUBLIC_*` values are baked in at build time: restart `npm run dev`, or rerun `npm run build` before `npm start`. |
+| Finished interview stays under **Upcoming** | The webhook worker (step 3b) isn't running, or the API is down. Results wait in Redis and are delivered once both are up; check the `webhook-worker` logs. |
 | Source stuck on `queued` or `parsed` | The relay or a worker (step 3b) isn't running. Start it; nothing is lost, waiting work is picked up when it starts. If a published task itself was lost, the relay re-queues the source after 10 minutes (`INGEST_STUCK_MIN`). |
 | Relay logs `Outbox publish failed` | Redis is down. Start it (step 1); the relay retries every second, in order, and records the error on the `outbox` row. |
 | `alembic upgrade head` can't connect | Postgres isn't up. Check `docker compose -f deploy/docker-compose.yml ps`. |

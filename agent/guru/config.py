@@ -29,6 +29,8 @@ QDRANT_COLLECTION = "kb_chunks"
 PLAN_PATH = Path(os.getenv("PLAN_PATH", ROOT / "fixtures" / "plan.json"))  # console runs (no session)
 API_URL = os.getenv("GURU_API_URL", "http://localhost:8080")  # backend: plan by session, results back
 SERVICE_TOKEN = os.getenv("GURU_SERVICE_TOKEN", "")  # shared with backend for /internal/*
+# The backend's Celery broker: results go out as a queued webhook (interviewer.post_results).
+REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 OUT_DIR = ROOT / "out"
 LOG_FILE = Path(os.getenv("LOG_FILE", ROOT / "logs" / "guru.txt"))  # file sink; console is the other
 

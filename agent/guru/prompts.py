@@ -60,7 +60,8 @@ If it returns NO_ANSWER or OUT_OF_SCOPE, say: "That's a great question, but I do
 information. The recruiter will be happy to answer it." Never answer from your own knowledge.
 Never discuss future projects, or tools and technologies other than: {allowed_tech_stack}.
 Never reveal scores or evaluation details.
-When the candidate has no more questions, say a brief goodbye and call end_interview.
+When the candidate has no more questions, call end_interview without saying anything first:
+it says the goodbye and ends the call. Never say goodbye yourself.
 """
 
 CONSENT = """\

@@ -5,7 +5,7 @@ import asyncio
 import hashlib
 import logging
 from functools import cache
-from typing import TypeVar
+from typing import Literal, TypeVar
 
 from google.genai import Client, types
 from openai import AsyncOpenAI
@@ -14,6 +14,7 @@ from pydantic import BaseModel
 from . import config
 from .jsonlog import jlog
 
+Provider = Literal["auto", "openrouter", "gemini"]
 M = TypeVar("M", bound=BaseModel)
 log = logging.getLogger("guru.llm")
 
@@ -47,12 +48,18 @@ async def generate_json(
     context: str = "",
     session_id: str = "",
     flex: bool = False,
+    provider: Provider = "auto",
 ) -> M:
     """`model` is the Gemini fallback for this role; OpenRouter (config.OPENROUTER_MODEL) goes first.
     Each attempt gets the full `timeout`, so the worst case is about twice that.
     `context` is a shared prefix sent as its own system message so repeated calls hit the prompt cache.
     `session_id` keeps one interview's calls on the same provider (cache hits) and is sent hashed as `user`.
-    `flex` asks for OpenRouter's cheaper, slower flex tier; only for work nobody is waiting on."""
+    `flex` asks for OpenRouter's cheaper, slower flex tier; only for work nobody is waiting on.
+    `provider` pins one provider with no fallback (the scorer, so one session has one judge)."""
+    if provider == "openrouter":
+        return await _openrouter_json(prompt, schema, timeout, context, session_id, flex)
+    if provider == "gemini":
+        return await _gemini_json(model, prompt, schema, timeout, context)
     if config.OPENROUTER_API_KEY:
         try:
             return await _openrouter_json(prompt, schema, timeout, context, session_id, flex)
