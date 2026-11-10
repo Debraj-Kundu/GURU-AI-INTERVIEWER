@@ -1,15 +1,19 @@
 """Interview sessions: recruiter links, the candidate's LiveKit token, results, and the
 agent-only /internal endpoints (PLAN §4.4)."""
 
+import asyncio
+import json
 import logging
 import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+import asyncpg
 from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi.responses import StreamingResponse
 from livekit import api
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from guru import scorer
@@ -49,6 +53,16 @@ def start_window(s: SessionRow) -> None:
     s.invite_expires_at = datetime.now(timezone.utc) + timedelta(minutes=settings.INVITE_TTL_MIN)
 
 
+EVENTS = "session_events"  # Postgres NOTIFY channel; the SSE endpoint below listens on it
+
+
+async def notify(db: AsyncSession, s: SessionRow) -> None:
+    """Announce a session change. Call before commit: Postgres delivers a NOTIFY only when its
+    transaction commits, so listeners never see a change that rolled back, nor miss one that didn't."""
+    payload = {"id": s.id, "job_id": s.job_id, "status": s.status, "score_status": s.score_status}
+    await db.execute(text("SELECT pg_notify(:channel, :payload)"), {"channel": EVENTS, "payload": json.dumps(payload)})
+
+
 async def _get_session(db: AsyncSession, session_id: str) -> SessionRow:
     s = await db.get(SessionRow, session_id)
     if s is None or s.org_id != settings.DEFAULT_ORG:
@@ -80,6 +94,7 @@ async def create_session(job_id: str, body: SessionIn, db: AsyncSession = Depend
     await db.flush()
     s.room_name = f"interview-{s.id}"  # unique per session: dispatch only happens when the room is created
     start_window(s)
+    await notify(db, s)
     await db.commit()
     return session_out(s, full=False)
 
@@ -102,6 +117,39 @@ async def list_sessions(job_id: str, db: AsyncSession = Depends(get_db)):
     return [session_out(s, full=False) for s in rows]
 
 
+@router.get("/jobs/{job_id}/sessions/events")
+async def session_events(job_id: str):
+    """Server-sent events: one `data:` line per change to this role's interviews (started, ended,
+    scored), so the recruiter page updates without polling. The page reloads the list on each
+    event and on every reconnect, so nothing is missed while it was disconnected."""
+    async with SessionLocal() as db:
+        await get_job(db, job_id)  # 404 before the stream starts
+
+    async def stream():
+        events: asyncio.Queue[str] = asyncio.Queue()
+
+        def on_event(_conn, _pid, _channel, payload: str) -> None:
+            if json.loads(payload).get("job_id") == job_id:
+                events.put_nowait(payload)
+
+        # ponytail: one LISTEN connection per open page. Fine for a handful of recruiters; share one
+        # listener per API process if there are hundreds of pages open at once.
+        conn = await asyncpg.connect(settings.DATABASE_URL.replace("+asyncpg", ""))
+        try:
+            await conn.add_listener(EVENTS, on_event)
+            yield "retry: 3000\n\n"  # reconnect after 3 s if dropped; also sends the headers at once
+            while True:
+                try:
+                    yield f"data: {await asyncio.wait_for(events.get(), 15)}\n\n"
+                except TimeoutError:
+                    yield ": ping\n\n"  # keeps proxies from closing an idle stream
+        finally:  # the client went away: Starlette cancels this generator
+            await conn.close()
+
+    return StreamingResponse(stream(), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
 @router.get("/sessions/{session_id}")
 async def read_session(session_id: str, db: AsyncSession = Depends(get_db)):
     return session_out(await _get_session(db, session_id))
@@ -115,6 +163,7 @@ async def rescore(session_id: str, db: AsyncSession = Depends(get_db)):
     if s.score_status == "scoring":
         raise HTTPException(409, "Scoring is already running.")
     s.score_status, s.score_error = "scoring", None
+    await notify(db, s)
     await db.commit()
     spawn(score(session_id))
     return session_out(s, full=False)
@@ -188,6 +237,7 @@ async def agent_start(session_id: str, body: StartIn, db: AsyncSession = Depends
     if s.status != "created" or body.room != s.room_name:
         raise HTTPException(409, "This interview already started or ended.")
     s.status, s.started_at = "active", datetime.now(timezone.utc)
+    await notify(db, s)
     await db.commit()
     return s.plan
 
@@ -202,7 +252,11 @@ class CompleteIn(BaseModel):
 
 @internal.post("/sessions/{session_id}/complete", dependencies=[Depends(require_service)])
 async def agent_complete(session_id: str, body: CompleteIn, db: AsyncSession = Depends(get_db)):
+    """The completion webhook (delivered from the queue by worker.deliver_webhook, which retries
+    until it gets a 2xx). Idempotent: a redelivery after the first success changes nothing."""
     s = await _get_session(db, session_id)
+    if s.status in ("completed", "declined"):
+        return {"ok": True, "duplicate": True}
     s.ended_at = datetime.now(timezone.utc)
     if not body.consented:
         s.status = "declined"  # nothing from a declined interview is kept
@@ -211,6 +265,7 @@ async def agent_complete(session_id: str, body: CompleteIn, db: AsyncSession = D
         s.usage, s.duration_sec = body.usage, body.duration_sec
         if body.turns:
             s.score_status = "scoring"
+    await notify(db, s)
     await db.commit()
     if s.score_status == "scoring":
         spawn(score(session_id))
@@ -235,4 +290,5 @@ async def score(session_id: str) -> None:
         if s is not None:
             for k, v in fields.items():
                 setattr(s, k, v)
+            await notify(db, s)
             await db.commit()

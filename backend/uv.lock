@@ -1402,6 +1402,7 @@ name = "guru-agent"
 version = "0.1.0"
 source = { editable = "../agent" }
 dependencies = [
+    { name = "celery", extra = ["redis"] },
     { name = "google-genai" },
     { name = "httpx" },
     { name = "livekit-agents", extra = ["deepgram", "elevenlabs", "google", "openai", "silero"] },
@@ -1412,6 +1413,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "celery", extras = ["redis"], specifier = ">=5.6.3" },
     { name = "google-genai", specifier = ">=2.32.0" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "livekit-agents", extras = ["deepgram", "elevenlabs", "google", "openai", "silero"], specifier = "~=1.8" },

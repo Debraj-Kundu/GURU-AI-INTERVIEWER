@@ -1,8 +1,10 @@
-"""Celery workers for KB ingestion (app/ingest.py): one stage per queue. Tasks are published only by
-the outbox relay (app/relay.py), never directly.
+"""Celery workers, one queue each:
+  parse, embed  KB ingestion (app/ingest.py), published only by the outbox relay (app/relay.py)
+  webhooks      the agent's interview-completion webhook, delivered to the API (deliver_webhook)
 
     uv run celery -A app.worker worker -Q parse -n parse@%h --pool=solo --loglevel=info
     uv run celery -A app.worker worker -Q embed -n embed@%h --pool=solo --loglevel=info
+    uv run celery -A app.worker worker -Q webhooks -n webhooks@%h --pool=solo --loglevel=info
 
 --pool=solo is for Windows (one task at a time); on Linux use the default prefork pool.
 """
@@ -11,13 +13,18 @@ import asyncio
 import logging
 from functools import cache
 
+import httpx
 from celery import Celery
 
 from . import ingest, settings
 
 celery = Celery("guru", broker=settings.REDIS_URL)
 celery.conf.update(
-    task_routes={"app.worker.parse_source": {"queue": "parse"}, "app.worker.embed_source": {"queue": "embed"}},
+    task_routes={
+        "app.worker.parse_source": {"queue": "parse"},
+        "app.worker.embed_source": {"queue": "embed"},
+        "app.worker.deliver_webhook": {"queue": "webhooks"},
+    },
     task_acks_late=True,  # a task a crashed worker was running goes back on the queue
     task_reject_on_worker_lost=True,
     worker_prefetch_multiplier=1,
@@ -62,3 +69,24 @@ def parse_source(self, source_id: str) -> None:
 def embed_source(self, source_id: str) -> None:
     _run(self, "Embedding", ingest.embed_stage, source_id)
 
+
+WEBHOOK_MAX_WAIT = 5 * 60  # backoff cap; must stay under visibility_timeout (15 min) or a waiting retry is handed out twice
+
+
+@celery.task(bind=True, max_retries=None)  # no limit: an interview's results are never dropped
+def deliver_webhook(self, session_id: str, body: dict) -> None:
+    """POST the agent's completion payload to the API, retrying until it's accepted, so an API that
+    was down gets the results once it's back. The agent publishes this with no expiry. The endpoint
+    is idempotent, so a repeat after a lost acknowledgement is a no-op."""
+    url = f"{settings.guru_config.API_URL}/internal/sessions/{session_id}/complete"
+    wait = min(WEBHOOK_MAX_WAIT, 5 * 2**self.request.retries)  # 5, 10, 20 ... 300 s
+    try:
+        r = httpx.post(url, json=body, headers={"X-Service-Token": settings.SERVICE_TOKEN}, timeout=30)
+    except httpx.TransportError as e:  # API down or unreachable
+        raise self.retry(exc=e, countdown=wait) from e
+    if r.status_code >= 500:
+        raise self.retry(exc=RuntimeError(f"HTTP {r.status_code}"), countdown=wait)
+    if r.is_error:  # 4xx: a bad token or unknown session; retrying won't fix it
+        logging.getLogger(__name__).error("webhook for %s rejected: HTTP %s %s", session_id, r.status_code, r.text[:300])
+        return
+    logging.getLogger(__name__).info("webhook for %s delivered: %s", session_id, r.text[:200])

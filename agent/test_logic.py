@@ -148,3 +148,29 @@ def test_split_answer_is_observed_once(monkeypatch):
     asyncio.run(run())
     assert cancelled == ["part one"]
     assert graded == ["part one\npart two", "next answer"]
+
+
+def test_scorer_uses_one_model_per_session(monkeypatch):
+    """One OpenRouter failure re-scores every criterion on Gemini, never a mix of judges."""
+    import asyncio
+
+    from guru import llm, scorer
+
+    calls: list[tuple[str, str]] = []
+
+    async def fake_generate_json(model, prompt, schema, provider="auto", **_):
+        cid = prompt.split("(id: ")[1].split(")")[0] if "(id: " in prompt else prompt[:20]
+        calls.append((provider, cid))
+        if provider == "openrouter" and len(calls) == 2:  # the second criterion fails
+            raise RuntimeError("402 out of credits")
+        return CriterionScore(criterion_id="", score=3, insufficient_evidence=False, evidence_turns=[1], rationale=provider)
+
+    monkeypatch.setattr(config, "OPENROUTER_API_KEY", "k")
+    monkeypatch.setattr(llm, "generate_json", fake_generate_json)
+    plan = Plan.model_validate_json(config.PLAN_PATH.read_text(encoding="utf-8"))
+    out = asyncio.run(scorer.score_session({"session_id": "t", "turns": [], "notes": []}, plan))
+
+    n = len(plan.job.criteria)
+    assert n >= 2 and out["model"] == config.SCORER_MODEL
+    assert {c["rationale"] for c in out["criteria"]} == {"gemini"}  # every final score from one judge
+    assert [p for p, _ in calls[-n:]] == ["gemini"] * n

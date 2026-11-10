@@ -17,6 +17,7 @@ x-backend: &backend
     S3_PUBLIC_ENDPOINT: http://localhost:4566  # presigned upload URLs are used by the browser
     REDIS_URL: redis://redis:6379/0
     WEB_ORIGIN: http://localhost:3000
+    GURU_API_URL: http://api:8080  # where the webhook worker delivers interview results
   restart: unless-stopped
 
 services:
@@ -93,12 +94,20 @@ services:
     command: ["celery", "-A", "app.worker", "worker", "-Q", "embed", "-n", "embed@%h", "--concurrency=2", "--loglevel=info"]
     depends_on: {api: {condition: service_healthy}}
 
+  # Delivers the agent's interview results (queued in Redis) to the API, retrying until it's up.
+  # No dependency on the api service: it must keep running while the API is down.
+  webhook-worker:
+    <<: *backend
+    command: ["celery", "-A", "app.worker", "worker", "-Q", "webhooks", "-n", "webhooks@%h", "--concurrency=2", "--loglevel=info"]
+    depends_on: {redis: {condition: service_started}}
+
   agent:
     build: ../agent
     image: guru-agent
     env_file: [../agent/.env]
     environment:
       GURU_API_URL: http://api:8080
+      REDIS_URL: redis://redis:6379/0  # results go out as a queued webhook
     # Production mode keeps one warm process per CPU (~250 MB each); 2 CPUs = 2 warm interviews.
     cpus: 2
     depends_on: {api: {condition: service_healthy}}

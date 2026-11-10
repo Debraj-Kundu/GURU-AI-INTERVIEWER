@@ -12,6 +12,7 @@ import time
 from dataclasses import dataclass, field
 
 import httpx
+from celery import Celery
 from google.genai import types
 from livekit import rtc
 from livekit.agents import (
@@ -19,6 +20,9 @@ from livekit.agents import (
     AgentServer,
     AgentSession,
     AgentTask,
+    AudioConfig,
+    BackgroundAudioPlayer,
+    BuiltinAudioClip,
     JobContext,
     JobProcess,
     TurnHandlingOptions,
@@ -37,6 +41,7 @@ from .models import ObserverNote, Plan
 from .llm import generate_json, openrouter
 
 GOODBYE = "We've reached the end of our time. Thank you for speaking with me today. Goodbye!"
+CLOSING_GOODBYE = "Thank you for your time today. The recruiter will be in touch about next steps. Goodbye!"
 DECLINED = "No problem at all. Thank you for your time, and goodbye!"
 STILL_THERE = "Are you still there?"
 SILENCE_GOODBYE = "Seems like there's a technical issue, try again later."
@@ -286,9 +291,17 @@ class ClosingAgent(Agent):
     @function_tool
     @logged
     async def end_interview(self) -> None:
-        """End the interview after saying goodbye."""
-        jlog("Shutting down session (drain)", class_name="ClosingAgent", function_name="end_interview")
-        self.session.shutdown(drain=True)  # drain lets the goodbye finish playing
+        """Say goodbye and end the interview. Call it once the candidate has no more questions."""
+        jlog("Saying goodbye, then shutting down", class_name="ClosingAgent", function_name="end_interview")
+        # The goodbye is spoken here, not by the model: a model that said goodbye but skipped this
+        # call left the session open, so the candidate who left was offered a rejoin. Not awaited:
+        # the speech is queued behind this tool call, so awaiting it in here would wait on itself.
+        spawn(say_goodbye_and_close(self.session))
+
+
+async def say_goodbye_and_close(session: AgentSession) -> None:
+    await session.say(CLOSING_GOODBYE, allow_interruptions=False)
+    session.shutdown()
 
 
 @logged
@@ -418,7 +431,9 @@ def build_session(proc: JobProcess, keyterms: list[str]) -> AgentSession:
             # Explicit: unset, the SDK uses adaptive only on LiveKit Cloud or in dev mode and silently
             # falls back to VAD in a self-hosted production worker, where "mm-hmm" cuts the interviewer
             # off. Self-hosted use counts toward LiveKit's 40k requests/month development allowance.
-            interruption={"mode": "adaptive"},
+            # min_words=1: while the agent speaks, a transcript with no words (noise came through as
+            # ".") neither interrupts it nor becomes a turn; one did, and the agent restarted its sentence.
+            interruption={"mode": "adaptive", "min_words": 2},
             preemptive_generation={
                 "enabled": True,
                 "preemptive_tts": False,  # never synthesise or speak before the turn is confirmed
@@ -481,14 +496,26 @@ def build_results(session: AgentSession, s: State) -> dict:
 @logged
 async def post_results(s: State, out: dict | None) -> None:
     """Send results to the backend, which stores them and starts scoring. Declined consent sends
-    only consented=false, so nothing is kept. The local JSON from save_transcript is the backup."""
-    # ponytail: direct HTTP call with one try; PLAN §4.4 routes this through RabbitMQ so a backend
-    # outage never loses an interview. Until then the out/<session>.json file is the fallback.
+    only consented=false, so nothing is kept.
+
+    Queued, so an API outage loses nothing: the payload goes to Redis (persistent), and the
+    backend's webhook worker POSTs it to the API, retrying until it's accepted (worker.deliver_webhook).
+    If Redis is down too, it's posted directly; if that fails, out/<session>.json is the backup."""
     body = {"consented": False}
     if out is not None:
         usage = {k: out[k] for k in ("latency", "llm_calls", "llm_cancelled", "usage")}
         body = {"consented": True, "turns": out["turns"], "notes": out["notes"], "usage": usage,
                 "duration_sec": out["duration_sec"]}
+    try:
+        # No expiry on this message: results must never be dropped, however long the API is down.
+        await asyncio.to_thread(  # blocking Redis publish
+            Celery(broker=config.REDIS_URL).send_task,
+            "app.worker.deliver_webhook", args=[s.session_id, body], queue="webhooks",
+        )
+        jlog("Results queued for the backend", function_name="post_results", output={"session_id": s.session_id, "consented": body["consented"]})
+        return
+    except Exception as e:
+        jlog("Queueing results failed: posting directly", function_name="post_results", err=e, level=logging.WARNING)
     async with httpx.AsyncClient(timeout=15, verify=_SSL) as client:
         r = await client.post(
             f"{config.API_URL}/internal/sessions/{s.session_id}/complete",
@@ -643,6 +670,11 @@ async def entrypoint(ctx: JobContext) -> None:
         # ROOM_DELETED: we (or LiveKit) deleted the room, so there's nothing to rejoin.
         if ctx.room.remote_participants or grace or p.disconnect_reason == rtc.DisconnectReason.ROOM_DELETED:
             return
+        if isinstance(session.current_agent, ClosingAgent):
+            # The questions are done; leaving during the wrap-up means they're finished, not dropped.
+            jlog("Candidate left during closing: ending the interview", function_name="entrypoint")
+            session.shutdown(drain=False)
+            return
         jlog(
             "Candidate disconnected: waiting for a rejoin",
             function_name="entrypoint",
@@ -668,6 +700,17 @@ async def entrypoint(ctx: JobContext) -> None:
         room_options=room_io.RoomOptions(close_on_disconnect=False, delete_room_on_close=True),
         record=False,  # no LiveKit Cloud recording before consent; Phase 2 starts Egress after consent
     )
+    # Quiet typing while the agent thinks. It covers the dead air on company questions (the model
+    # deciding to look up, the lookup, then the answer: 7-11 s in testing), and briefly fills
+    # ordinary 1-2 s waits too. Not played in console mode (the SDK skips it there).
+    background = BackgroundAudioPlayer(
+        thinking_sound=[
+            AudioConfig(BuiltinAudioClip.KEYBOARD_TYPING, volume=0.35),
+            AudioConfig(BuiltinAudioClip.KEYBOARD_TYPING2, volume=0.3),
+        ]
+    )
+    await background.start(room=ctx.room, agent_session=session)
+    ctx.add_shutdown_callback(background.aclose)
     jlog(
         "Session started",
         function_name="entrypoint",

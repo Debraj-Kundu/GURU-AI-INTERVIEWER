@@ -6,6 +6,7 @@ Usage: uv run python -m guru.scorer out/<session_id>.json [--plan fixtures/plan.
 import argparse
 import asyncio
 import json
+import logging
 from pathlib import Path
 
 from . import config, llm, prompts
@@ -22,7 +23,7 @@ def aggregate(scores: list[CriterionScore], criteria: list[Criterion]) -> float 
     return round(sum(score * w for score, w in rated) / total, 2)
 
 
-async def score_criterion(c: Criterion, context: str, session_id: str) -> CriterionScore:
+async def score_criterion(c: Criterion, context: str, session_id: str, provider: llm.Provider) -> CriterionScore:
     prompt = prompts.SCORER.format(
         name=c.name,
         id=c.id,
@@ -31,7 +32,8 @@ async def score_criterion(c: Criterion, context: str, session_id: str) -> Criter
     )
     # flex: nobody waits on the score (the candidate never sees it), so take the cheaper tier.
     s = await llm.generate_json(
-        config.SCORER_MODEL, prompt, CriterionScore, timeout=120, context=context, session_id=session_id, flex=True
+        config.SCORER_MODEL, prompt, CriterionScore, timeout=120, context=context, session_id=session_id, flex=True,
+        provider=provider,
     )
     s.criterion_id = c.id  # never trust the model to echo the id back
     return s
@@ -40,19 +42,34 @@ async def score_criterion(c: Criterion, context: str, session_id: str) -> Criter
 async def score_session(session: dict, plan: Plan) -> dict:
     transcript = "\n".join(f"{t['idx']} {t['speaker']}: {t['text']}" for t in session["turns"])
     context = prompts.SCORER_CONTEXT.format(notes=json.dumps(session.get("notes", [])), transcript=transcript)
-    first, *rest = plan.job.criteria
-    # The first call writes the shared-context cache; firing all at once would make every call miss it.
     sid = session["session_id"]
-    scores = [await score_criterion(first, context, sid)]
-    async with asyncio.TaskGroup() as tg:
-        tasks = [tg.create_task(score_criterion(c, context, sid)) for c in rest]
-    scores += [t.result() for t in tasks]
+    # One judge per session: every criterion is scored by the same model. If any OpenRouter call
+    # fails, all criteria are re-scored on Gemini, rather than mixing models within one candidate.
+    provider: llm.Provider = "openrouter" if config.OPENROUTER_API_KEY else "gemini"
+    try:
+        scores = await _score_all(plan, context, sid, provider)
+    except Exception as e:
+        if provider == "gemini":
+            raise
+        logging.getLogger(__name__).warning("scoring on openrouter failed, re-scoring all criteria on gemini: %s", e)
+        provider = "gemini"
+        scores = await _score_all(plan, context, sid, provider)
     return {
         "session_id": session["session_id"],
+        "model": config.OPENROUTER_MODEL if provider == "openrouter" else config.SCORER_MODEL,
         "overall": aggregate(scores, plan.job.criteria),
         "criteria": [s.model_dump() for s in scores],
         "advisory": "AI-assisted score. Requires human review before any decision.",
     }
+
+
+async def _score_all(plan: Plan, context: str, sid: str, provider: llm.Provider) -> list[CriterionScore]:
+    first, *rest = plan.job.criteria
+    # The first call writes the shared-context cache; firing all at once would make every call miss it.
+    scores = [await score_criterion(first, context, sid, provider)]
+    async with asyncio.TaskGroup() as tg:
+        tasks = [tg.create_task(score_criterion(c, context, sid, provider)) for c in rest]
+    return scores + [t.result() for t in tasks]
 
 
 def main() -> None:
