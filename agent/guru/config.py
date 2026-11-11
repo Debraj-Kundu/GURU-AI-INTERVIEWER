@@ -38,7 +38,7 @@ LOG_FILE = Path(os.getenv("LOG_FILE", ROOT / "logs" / "guru.txt"))  # file sink;
 CLOSING_SEC = 90
 MAX_FOLLOW_UPS = 2
 KEEP_CHAT_ITEMS = 16  # rolling window kept when moving to the next question (§3.4)
-SILENCE_SEC = 7.0  # no speech from either side for this long -> "Are you still there?"
+SILENCE_SEC = 7.0  # silence after the agent finishes a turn for this long -> "Are you still there?"
 SILENCE_PROMPTS = 3  # check-ins before ending the interview as a technical issue
 RECONNECT_GRACE_SEC = 120.0  # a dropped candidate may rejoin within this; then the interview ends for good
 

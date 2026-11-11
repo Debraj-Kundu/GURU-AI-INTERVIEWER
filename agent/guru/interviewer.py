@@ -25,6 +25,7 @@ from livekit.agents import (
     BuiltinAudioClip,
     JobContext,
     JobProcess,
+    ModelSettings,
     TurnHandlingOptions,
     cli,
     function_tool,
@@ -79,6 +80,7 @@ class State:
     llm_calls: int = field(default=0, repr=False)
     llm_cancelled: int = field(default=0, repr=False)  # preemptive generations thrown away (§3.5.1)
     silence_prompts: int = 0  # "Are you still there?" asked since the candidate last said something
+    agent_turn_done: bool = False  # the agent finished speaking and nobody has spoken since; silence counts only then
     timer: asyncio.Task | None = field(default=None, repr=False)
     observing: dict[int, asyncio.Task] = field(default_factory=dict, repr=False)  # running Observer call per question
 
@@ -88,24 +90,30 @@ class State:
 
 
 def interviewer_instructions(s: State) -> str:
+    """The system prompt. Fixed for the whole interview, so the provider can cache it plus
+    the growing chat history; per-turn state goes in current_question_block instead."""
     p, job = s.plan.plan, s.plan.job
-    static = prompts.INTERVIEWER.format(
+    return prompts.INTERVIEWER.format(
         job_title=job.title,
         company_name=job.company_name,
         allowed_tech_stack=", ".join(p.allowed_tech_stack),
         plan_json=p.model_dump_json(include={"questions"}),
     )
-    q = s.question
+
+
+def current_question_block(s: State) -> str:
+    """Where the interview is, added before each candidate-turn reply (turn-only, never kept)."""
+    p, q = s.plan.plan, s.question
     over_time = time.monotonic() - s.question_started_at > q.time_budget_sec
-    # These instructions take effect from the reply AFTER the one already being generated
-    # (it may have started preemptively), so count that reply as a follow-up already.
+    # Runs in llm_node, which LiveKit starts before it commits the candidate's message: s.answers
+    # does not include the answer just given yet, and this block shapes the reply being generated now.
     # ponytail: assumes every interviewer reply on a question is a follow-up; clarifications
     # and company Q&A also count. Upgrade: have the LLM tag follow-ups via a tool if it matters.
     follow_ups = len(s.answers)
-    must_advance = ""
-    if s.time_up or over_time or follow_ups >= config.MAX_FOLLOW_UPS:
-        must_advance = " Do not ask more follow-ups: call advance_to_next_question now."
-    return static + prompts.CURRENT_QUESTION.format(
+    must_advance = " Do not ask more follow-ups: call advance_to_next_question now." \
+                        if s.time_up or over_time or follow_ups >= config.MAX_FOLLOW_UPS else ""
+    
+    return prompts.CURRENT_QUESTION.format(
         number=s.idx + 1,
         total=len(p.questions),
         text=q.text,
@@ -195,8 +203,17 @@ class InterviewerAgent(Agent):
             f"questions), then ask the first question in your own words: {s.question.text}"
         )
 
-    async def refresh(self) -> None:
-        await self.update_instructions(interviewer_instructions(self.s))
+    async def llm_node(self, chat_ctx: llm.ChatContext, tools: list[llm.Tool], model_settings: ModelSettings):
+        # The block goes on a copy, at call time (LiveKit docs: nodes "LLM node"). Not in
+        # on_user_turn_completed: that changes the turn context, so LiveKit threw away every
+        # preemptive reply, and the tool reply after advance_to_next_question kept the old
+        # question's block. Here each call (preemptive, normal, tool reply) gets fresh state, and
+        # the stored history, the cacheable prefix, never sees it. Gemini receives a mid-conversation
+        # system message as a user turn in place (livekit.agents.llm._provider_format.utils).
+        chat_ctx = chat_ctx.copy()
+        chat_ctx.add_message(role="system", content=current_question_block(self.s))
+        async for chunk in Agent.default.llm_node(self, chat_ctx, tools, model_settings):
+            yield chunk
 
     @function_tool
     @logged
@@ -216,7 +233,6 @@ class InterviewerAgent(Agent):
         s.idx += 1
         s.answers, s.note = [], ""
         s.question_started_at = time.monotonic()
-        await self.refresh()
         # Keep context small as the interview grows (§3.4); observer notes keep the summary.
         await self.update_chat_ctx(self.chat_ctx.copy().truncate(max_items=config.KEEP_CHAT_ITEMS))
         jlog(
@@ -310,9 +326,8 @@ async def run_timer(session: AgentSession, s: State) -> None:
     cap = s.plan.job.max_duration_sec
     await asyncio.sleep(max(0, cap - config.CLOSING_SEC))
     s.time_up = True
+    # The next candidate-turn reply sees time_up in current_question_block; no talking over the candidate.
     jlog("Time up: next reply moves to closing", function_name="run_timer", output={"elapsed_sec": cap - config.CLOSING_SEC})
-    if isinstance(session.current_agent, InterviewerAgent):
-        await session.current_agent.refresh()  # next reply moves to closing; no talking over the candidate
     await asyncio.sleep(config.CLOSING_SEC)
     jlog("Hard cap reached: goodbye and shutdown", function_name="run_timer", output={"session_id": s.session_id, "cap_sec": cap})
     session.interrupt(force=True)
@@ -324,6 +339,13 @@ async def run_timer(session: AgentSession, s: State) -> None:
 async def on_silence(session: AgentSession, s: State) -> None:
     """LiveKit marks the user "away" after SILENCE_SEC with nobody speaking. Check in up to
     SILENCE_PROMPTS times, then end the interview."""
+    # LiveKit only marks the agent "thinking" once a reply is scheduled, so "away" also fired while
+    # the first reply was still generating (session e3cd9607, 7 s after join). Count silence only
+    # after a finished agent turn; clearing "away" lets LiveKit re-arm the timer when the agent next
+    # goes quiet.
+    if not s.agent_turn_done:
+        session.reset_away_timer()
+        return
     if s.silence_prompts >= config.SILENCE_PROMPTS:
         jlog("Still silent after check-ins: ending interview", function_name="on_silence", output={"prompts": s.silence_prompts})
         await session.say(SILENCE_GOODBYE, allow_interruptions=False)
@@ -354,8 +376,7 @@ async def observe(session: AgentSession, agent: InterviewerAgent, answer: str) -
     s.notes.append({"question_idx": idx, "note": note.model_dump()})
     # The session we were given, not agent.session: that raises once a handoff has deactivated the agent.
     if s.idx == idx and session.current_agent is agent:  # still on the same question
-        s.note = note.model_dump_json(exclude={"coverage"})
-        await agent.refresh()
+        s.note = note.model_dump_json(exclude={"coverage"})  # read by the next current_question_block
 
 
 def observe_latest(session: AgentSession, agent: InterviewerAgent) -> None:
@@ -374,30 +395,36 @@ def voice_llms() -> list[llm.LLM]:
     if not config.OPENROUTER_API_KEY:  # same check with_openrouter() made; avoids falling back to OPENAI_API_KEY
         raise ValueError("OPENROUTER_API_KEY is required")
     llms: list[llm.LLM] = [
-        # Gemini first: in evals/voice_llm_eval.py it reached the first token in 1.24 s p50 / 1.60 s p95
-        # against 1.91 s / 4.69 s for OpenRouter, with the same turn decisions (32/32 each).
-        # ponytail: a free-tier key allows 15 requests/min on this model, about 2-3 live interviews;
-        # beyond that a 429 falls through to OpenRouter. Use a paid tier for more.
-        google.LLM(
-            model=config.INTERVIEWER_MODEL,
-            temperature=0.4,
-            thinking_config=types.ThinkingConfig(
-                                    thinking_level=types.ThinkingLevel(config.INTERVIEWER_THINKING.upper())),
-            max_output_tokens=config.VOICE_MAX_TOKENS,  # same runaway cap as the OpenRouter entry
-        ),
+        # OpenRouter first. Live calls, same job (11 Nov): Gemini first (78d20f9c) took 4.42 s median
+        # to the first token, 10 of 18 calls over 4 s, voice-to-voice 5.4 s p50 / 8.6 s p95, 0 cached
+        # tokens. OpenRouter first (4c01d7db): 2.26 s median, none over 4 s, 2.6 s p50 / 4.1 s p95,
+        # 67% of input tokens cached. evals/voice_llm_eval.py had Gemini faster (1.24 s p50), but it
+        # doesn't reproduce live load and rate limits.
         # Plain LLM, not with_openrouter(), which has no max_completion_tokens.
         openai.LLM(
             model=config.OPENROUTER_MODEL,
             api_key=config.OPENROUTER_API_KEY,
             base_url="https://openrouter.ai/api/v1",
             extra_headers={"X-Title": "Guru"},
-            # Explicit cache mode with no breakpoints = no caching. The instructions change almost
-            # every turn, so implicit caching paid 1.25x cache writes on ~10 turns for 2 reads.
-            # Re-enable if the per-turn state moves out of the instructions (stable prefix).
-            extra_body={"provider": {"data_collection": "deny"}, "prompt_cache_options": {"mode": "explicit"}},
+            # Implicit prompt caching (the default). It was off ("explicit" mode, no breakpoints) while the
+            # instructions changed every turn; now they're fixed and per-turn state is added in llm_node.
+            extra_body={"provider": {"data_collection": "deny"}},
             # Reasoning was most of the output tokens, and output tokens drive latency (OpenAI latency guide).
             reasoning_effort=config.INTERVIEWER_THINKING,  # type: ignore[arg-type]  # validated by the API
             max_completion_tokens=config.VOICE_MAX_TOKENS,
+        ),
+        # ponytail: a free-tier key allows 15 requests/min on this model, about 2-3 live interviews.
+        # Use a paid tier if Gemini goes back to first.
+        # ponytail: no Gemini prompt cache hits. Implicit caching needs a prefix of at least 4,096
+        # tokens on Gemini 3.x Flash (ai.google.dev/gemini-api/docs/caching); interview requests are
+        # ~1-3.5k (0 cached tokens on all calls, session e3cd9607). Explicit `cached_content` isn't
+        # worth it at this size; revisit if prompts grow past 4k.
+        google.LLM(
+            model=config.INTERVIEWER_MODEL,
+            temperature=0.4,
+            thinking_config=types.ThinkingConfig(
+                                    thinking_level=types.ThinkingLevel(config.INTERVIEWER_THINKING.upper())),
+            max_output_tokens=config.VOICE_MAX_TOKENS,  # same runaway cap as the OpenRouter entry
         ),
     ]
     return llms
@@ -577,12 +604,15 @@ async def entrypoint(ctx: JobContext) -> None:
         nonlocal user_stopped_at
         if ev.old_state == "speaking" and ev.new_state == "listening":
             user_stopped_at = time.monotonic()
+        if ev.new_state == "speaking":
+            s.agent_turn_done = False  # the silence clock waits for the agent's next turn
         if ev.new_state == "away":
             spawn(on_silence(session, s))
 
     @session.on("agent_state_changed")
     def _agent_state(ev):
         nonlocal user_stopped_at
+        s.agent_turn_done = ev.old_state == "speaking" and ev.new_state == "listening"
         if ev.new_state == "speaking" and user_stopped_at is not None:
             s.latencies.append(time.monotonic() - user_stopped_at)
             user_stopped_at = None
@@ -631,7 +661,6 @@ async def entrypoint(ctx: JobContext) -> None:
         if session.current_agent is not agent:
             return  # consent/closing turns are not graded
         s.answers.append(item.text_content or "")
-        spawn(agent.refresh())  # follow-up count for the next reply
         observe_latest(session, agent)
 
     @session.on("close")
