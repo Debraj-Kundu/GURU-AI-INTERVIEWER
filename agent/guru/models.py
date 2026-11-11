@@ -49,6 +49,9 @@ class InterviewPlan(BaseModel):
     questions: list[PlannedQuestion]
     skipped_questions: list[SkippedQuestion] = []
     allowed_tech_stack: list[str]
+    # Words the candidate is likely to say, boosted in speech-to-text. allowed_tech_stack was the only
+    # source and is often empty, so "RAG" was heard as "drag" (session 7c2b5e92). Older plans have none.
+    stt_keyterms: list[str] = []
 
 
 class Plan(BaseModel):
@@ -65,6 +68,9 @@ class ObserverNote(BaseModel):
     signals_missing: list[str]
     red_flags: list[str]
     suggested_followup: str | None
+    # The candidate's most recent turn answered the question, or asked about it (repeat, rephrase,
+    # which part). Only answers use up a follow-up. Defaults to answer, today's count if it's missing.
+    latest_turn: Literal["answer", "clarification"] = "answer"
 
 
 class CriterionScore(BaseModel):

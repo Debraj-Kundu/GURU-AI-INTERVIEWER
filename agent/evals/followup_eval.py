@@ -32,7 +32,7 @@ async def main() -> None:
         *(
             generate_json(
                 config.OBSERVER_MODEL,
-                prompts.OBSERVER.format(question=QUESTION, signals="; ".join(SIGNALS), answer=a),
+                prompts.OBSERVER.format(question=QUESTION, signals="; ".join(SIGNALS), answer=a, latest=a),
                 ObserverNote,
             )
             for a in ANSWERS.values()

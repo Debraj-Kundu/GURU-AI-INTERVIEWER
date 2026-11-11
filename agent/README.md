@@ -28,7 +28,13 @@ Each transcript JSON in `out/` also records voice-to-voice latency (p50/p95), ho
 ## Layout
 | File | What |
 |---|---|
-| `guru/interviewer.py` | LiveKit worker: Consent task → Interviewer → Closing, Observer hook, hard-cap timer, metrics, transcript |
+| `guru/interviewer.py` | Launcher only: `python -m guru.interviewer dev/console/start` |
+| `guru/worker.py` | LiveKit worker entrypoint: builds the state, pipeline, agents and event handlers, starts the session |
+| `guru/agents/` | One file per conversation step: `consent.py` → `interviewer.py` → `closing.py`; shared `guards.py` (tools wait for a candidate reply) and `company_lookup.py` |
+| `guru/states/` | `InterviewState`: everything one interview remembers while it runs |
+| `guru/session/` | `pipeline.py` (STT/LLM/TTS, fallback order), `observer.py` (background grader), `lifecycle.py` (clock, silence check-ins), `events.py` (LiveKit event handlers, reconnects) |
+| `guru/results.py`, `guru/backend_client.py` | Transcript, latency and outcome results; plan loading and result delivery to the backend |
+| `guru/phrases.py` | Fixed lines the agent speaks without the LLM |
 | `guru/planner.py` | Job + bank + KB → plan that fits `max_duration_sec` |
 | `guru/scorer.py` | Per-criterion parallel scoring + weighted aggregate |
 | `guru/kb.py` | Chunking, hybrid Qdrant search, three-layer grounded lookup |

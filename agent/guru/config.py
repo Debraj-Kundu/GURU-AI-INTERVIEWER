@@ -19,7 +19,12 @@ PLANNER_MODEL = os.getenv("PLANNER_MODEL", "gemini-3.5-flash-lite")
 SCORER_MODEL = os.getenv("SCORER_MODEL", "gemini-3.5-flash-lite")
 EMBED_MODEL = os.getenv("EMBED_MODEL", "gemini-embedding-2")
 EMBED_DIM = 768
-INTERVIEWER_THINKING = os.getenv("INTERVIEWER_THINKING", "minimal")  # Gemini thinking + OpenRouter reasoning_effort
+INTERVIEWER_THINKING = os.getenv("INTERVIEWER_THINKING", "minimal")  # Gemini thinking_level (voice fallback)
+# OpenRouter voice reasoning_effort. gpt-6-luna supports none/low/medium/high/xhigh/max, not "minimal":
+# sent "minimal", it still reasoned 16-47 tokens a turn (+~2 s to the first token, session 4c01d7db).
+# "none" broke the flow: the model asked a question and called the next tool in the same response,
+# never waiting for the candidate (session cd2fde9e). The tools now refuse that, but "low" keeps it stopping.
+OPENROUTER_REASONING = os.getenv("OPENROUTER_REASONING", "low")
 VOICE_MAX_TOKENS = 400  # reasoning + a spoken reply; replies were under 110 tokens, so this only stops runaways
 
 ELEVENLABS_VOICE_ID = os.getenv("ELEVENLABS_VOICE_ID", "")  # empty -> plugin default voice
@@ -55,4 +60,5 @@ PREEMPT_MAX_RETRIES = 5
 # Company Q&A grounding (PLAN §3.8). Tuned on evals/qa_eval.py.
 RAG_TOP_K = 4
 RAG_MIN_SCORE = float(os.getenv("RAG_MIN_SCORE", "0.5"))  # min dense cosine of best hit
+LOOKUP_FILLER_SEC = 3.0  # silence during a company lookup before "One moment, let me check that."
 SCOPE_TIMEOUT_SEC = float(os.getenv("SCOPE_TIMEOUT_SEC", "5"))  # live latency budget; fails closed
