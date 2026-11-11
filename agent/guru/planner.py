@@ -40,7 +40,8 @@ async def make_plan(job: JobRole, company_summary: str) -> InterviewPlan:
     )
     # flex: planning runs when the recruiter saves the job, not while a candidate waits.
     plan = await llm.generate_json(
-        config.PLANNER_MODEL, prompt, InterviewPlan, timeout=120, session_id=f"job:{job.id}", flex=True
+        config.PLANNER_MODEL, prompt, InterviewPlan, timeout=120, session_id=f"job:{job.id}", flex=True,
+        max_tokens=16384,  # a full plan is a few thousand tokens; the default 2048 would cut it off
     )
     plan = fit_to_time(plan, job.max_duration_sec - config.CLOSING_SEC)
     if not plan.questions:

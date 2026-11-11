@@ -49,29 +49,32 @@ async def generate_json(
     session_id: str = "",
     flex: bool = False,
     provider: Provider = "auto",
+    max_tokens: int = 2048,
 ) -> M:
     """`model` is the Gemini fallback for this role; OpenRouter (config.OPENROUTER_MODEL) goes first.
     Each attempt gets the full `timeout`, so the worst case is about twice that.
     `context` is a shared prefix sent as its own system message so repeated calls hit the prompt cache.
     `session_id` keeps one interview's calls on the same provider (cache hits) and is sent hashed as `user`.
     `flex` asks for OpenRouter's cheaper, slower flex tier; only for work nobody is waiting on.
-    `provider` pins one provider with no fallback (the scorer, so one session has one judge)."""
+    `provider` pins one provider with no fallback (the scorer, so one session has one judge).
+    `max_tokens` caps the output. Unset, OpenRouter reserves the model's whole output limit (65,536)
+    against the key's credit and refused every call with 402 once the key's daily limit ran low."""
     if provider == "openrouter":
-        return await _openrouter_json(prompt, schema, timeout, context, session_id, flex)
+        return await _openrouter_json(prompt, schema, timeout, context, session_id, flex, max_tokens)
     if provider == "gemini":
-        return await _gemini_json(model, prompt, schema, timeout, context)
+        return await _gemini_json(model, prompt, schema, timeout, context, max_tokens)
     if config.OPENROUTER_API_KEY:
         try:
-            return await _openrouter_json(prompt, schema, timeout, context, session_id, flex)
+            return await _openrouter_json(prompt, schema, timeout, context, session_id, flex, max_tokens)
         except Exception as e:
             # ponytail: no circuit breaker yet, so a dead primary costs one timeout per call.
             # Phase 2 adds the Redis-backed breaker (PLAN §2) to skip it while it's down.
             log.warning("openrouter failed, falling back to gemini: %s", e)
-    return await _gemini_json(model, prompt, schema, timeout, context)
+    return await _gemini_json(model, prompt, schema, timeout, context, max_tokens)
 
 
 async def _openrouter_json(
-    prompt: str, schema: type[M], timeout: float, context: str, session_id: str, flex: bool
+    prompt: str, schema: type[M], timeout: float, context: str, session_id: str, flex: bool, max_tokens: int
 ) -> M:
     messages = [{"role": "system", "content": context}] if context else []
     messages.append({"role": "user", "content": prompt})
@@ -87,6 +90,7 @@ async def _openrouter_json(
             resp = await openrouter().chat.completions.create(
                 model=config.OPENROUTER_MODEL,
                 messages=messages,  # type: ignore[arg-type]
+                max_tokens=max_tokens,
                 response_format={
                     "type": "json_schema",
                     # strict needs every field required; our schemas have defaults, so validate below.
@@ -111,9 +115,10 @@ async def _openrouter_json(
     return schema.model_validate_json(text)
 
 
-async def _gemini_json(model: str, prompt: str, schema: type[M], timeout: float, context: str) -> M:
+async def _gemini_json(model: str, prompt: str, schema: type[M], timeout: float, context: str, max_tokens: int) -> M:
     cfg = types.GenerateContentConfig(
         system_instruction=context or None,
+        max_output_tokens=max_tokens,
         response_mime_type="application/json",
         response_json_schema=schema.model_json_schema(),
     )

@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 from guru import config
-from guru.interviewer import State, interviewer_instructions
+from guru.interviewer import State, current_question_block, interviewer_instructions
 from guru.kb import CHUNK_CHARS, chunk
 from guru.models import CriterionScore, InterviewPlan, JobRole, Plan, PlannedQuestion
 from guru.planner import fit_to_time
@@ -62,11 +62,11 @@ def test_follow_up_limit_and_time_up_force_advance():
     plan = Plan(job=JOB, plan=InterviewPlan(questions=[q("Q1", 120), q("Q2", 120)], allowed_tech_stack=["Python"]))
     s = State(plan=plan, session_id="t")
     s.question_started_at = __import__("time").monotonic()
-    assert "call advance_to_next_question now" not in interviewer_instructions(s)
+    assert "call advance_to_next_question now" not in current_question_block(s)
     s.answers = ["a"] * config.MAX_FOLLOW_UPS
-    assert "call advance_to_next_question now" in interviewer_instructions(s)
+    assert "call advance_to_next_question now" in current_question_block(s)
     s.answers, s.time_up = [], True
-    assert "call advance_to_next_question now" in interviewer_instructions(s)
+    assert "call advance_to_next_question now" in current_question_block(s)
 
 
 def test_silence_checks_in_then_ends():
@@ -94,6 +94,11 @@ def test_silence_checks_in_then_ends():
 
     plan = Plan(job=JOB, plan=InterviewPlan(questions=[q("Q1", 120)], allowed_tech_stack=[]))
     s, session = State(plan=plan, session_id="t"), FakeSession()
+    asyncio.run(on_silence(session, s))  # type: ignore[arg-type]
+    assert session.said == [] and s.silence_prompts == 0  # agent hasn't finished a turn: not silence yet
+    assert session.resets == 1  # "away" cleared so LiveKit re-arms after the agent's turn
+    session.resets = 0
+    s.agent_turn_done = True
     for _ in range(config.SILENCE_PROMPTS):
         asyncio.run(on_silence(session, s))  # type: ignore[arg-type]
     assert session.said == [STILL_THERE] * config.SILENCE_PROMPTS and not session.closed
@@ -102,15 +107,15 @@ def test_silence_checks_in_then_ends():
     assert session.said[-1] == SILENCE_GOODBYE and session.closed
 
 
-def test_static_prompt_prefix_is_stable():
-    """Gemini implicit caching needs an identical prefix across turns (§3.4)."""
+def test_system_prompt_is_fixed_for_the_interview():
+    """Prompt caching needs an identical prefix across turns (§3.4): question, follow-ups, notes
+    and time-up live in current_question_block, never in the system prompt."""
     plan = Plan(job=JOB, plan=InterviewPlan(questions=[q("Q1", 120), q("Q2", 120)], allowed_tech_stack=["Python"]))
     s = State(plan=plan, session_id="t")
     a = interviewer_instructions(s)
-    s.idx, s.note = 1, json.dumps({"depth": "deep"})
-    b = interviewer_instructions(s)
-    prefix = a.split("Current question")[0]
-    assert b.startswith(prefix)
+    s.idx, s.note, s.answers, s.time_up = 1, json.dumps({"depth": "deep"}), ["a"], True
+    assert interviewer_instructions(s) == a
+    assert "Current question (2 of 2)" in current_question_block(s)
 
 
 def test_split_answer_is_observed_once(monkeypatch):
