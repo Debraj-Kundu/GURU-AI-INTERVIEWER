@@ -25,7 +25,7 @@ S3_BUCKET = os.getenv("S3_BUCKET", "guru-uploads")
 LIVEKIT_URL = os.getenv("LIVEKIT_URL", "")
 LIVEKIT_API_KEY = os.getenv("LIVEKIT_API_KEY", "")
 LIVEKIT_API_SECRET = os.getenv("LIVEKIT_API_SECRET", "")
-AGENT_NAME = "interviewer"  # must match @server.rtc_session(agent_name=...) in agent/guru/interviewer.py
+AGENT_NAME = "interviewer"  # must match @server.rtc_session(agent_name=...) in agent/guru/worker.py
 
 SERVICE_TOKEN = os.getenv("GURU_SERVICE_TOKEN", "")  # shared with the agent for /internal/*
 WEB_ORIGIN = os.getenv("WEB_ORIGIN", "http://localhost:3000")

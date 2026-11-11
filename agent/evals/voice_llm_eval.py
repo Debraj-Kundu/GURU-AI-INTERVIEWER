@@ -1,7 +1,7 @@
 """Voice LLM benchmark: time to first token AND the interviewer's turn decisions, per provider.
 
 Each scenario is a real interviewer prompt (fixture plan) at a decision point; every voice LLM in
-interviewer.voice_llms() gets the same requests, alternated so network drift hits both alike.
+session.pipeline.voice_llms() gets the same requests, alternated so network drift hits both alike.
 A faster model is only a win if it still makes the right call (follow up vs advance, look up,
 end). Needs OPENROUTER_API_KEY and GOOGLE_API_KEY.
 
@@ -16,7 +16,10 @@ import time
 from livekit.agents import llm
 
 from guru import config
-from guru.interviewer import InterviewerAgent, State, voice_llms
+from guru.agents import InterviewerAgent
+from guru.agents.interviewer import current_question_block
+from guru.session.pipeline import voice_llms
+from guru.states import InterviewState
 from guru.models import Plan
 
 ANSWER = (
@@ -33,13 +36,16 @@ SCENARIOS = [
 
 
 def request(answers_used: int, said: str) -> tuple[llm.ChatContext, list]:
-    s = State(plan=Plan.model_validate_json(config.PLAN_PATH.read_text(encoding="utf-8")), session_id="eval")
+    s = InterviewState(plan=Plan.model_validate_json(config.PLAN_PATH.read_text(encoding="utf-8")), session_id="eval")
     s.answers = ["(earlier answer)"] * answers_used
     agent = InterviewerAgent(s)  # builds the live instructions for this state
     ctx = llm.ChatContext()
     ctx.add_message(role="system", content=agent.instructions)
     ctx.add_message(role="assistant", content=s.question.text)
     ctx.add_message(role="user", content=said)
+    # The live agent adds this per call in InterviewerAgent.llm_node (follow-ups used, must-advance);
+    # without it the model can't know the follow-up budget.
+    ctx.add_message(role="system", content=current_question_block(s))
     return ctx, agent.tools
 
 

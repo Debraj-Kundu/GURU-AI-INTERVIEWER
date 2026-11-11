@@ -4,9 +4,10 @@ import json
 from pathlib import Path
 
 from guru import config
-from guru.interviewer import State, current_question_block, interviewer_instructions
+from guru.agents.interviewer import current_question_block, interviewer_instructions
+from guru.states import InterviewState
 from guru.kb import CHUNK_CHARS, chunk
-from guru.models import CriterionScore, InterviewPlan, JobRole, Plan, PlannedQuestion
+from guru.models import CriterionScore, InterviewPlan, JobRole, ObserverNote, Plan, PlannedQuestion
 from guru.planner import fit_to_time
 from guru.scorer import aggregate
 
@@ -60,19 +61,88 @@ def test_fixture_kb_chunks():
 
 def test_follow_up_limit_and_time_up_force_advance():
     plan = Plan(job=JOB, plan=InterviewPlan(questions=[q("Q1", 120), q("Q2", 120)], allowed_tech_stack=["Python"]))
-    s = State(plan=plan, session_id="t")
+    s = InterviewState(plan=plan, session_id="t")
     s.question_started_at = __import__("time").monotonic()
     assert "call advance_to_next_question now" not in current_question_block(s)
     s.answers = ["a"] * config.MAX_FOLLOW_UPS
     assert "call advance_to_next_question now" in current_question_block(s)
     s.answers, s.time_up = [], True
     assert "call advance_to_next_question now" in current_question_block(s)
+    s.time_up = False
+    s.answers, s.clarifications = ["a"] * config.MAX_FOLLOW_UPS, 1  # one turn only asked to repeat the question
+    assert "call advance_to_next_question now" not in current_question_block(s)
+
+
+def test_tools_wait_for_a_candidate_reply():
+    """Session cd2fde9e: the model asked a question and called the next tool in the same response,
+    so consent, both questions and the handoff went by with no candidate turn."""
+    import asyncio
+
+    from livekit.agents.llm import ChatContext, ToolError
+
+    from guru import agents as iv
+
+    plan = Plan(job=JOB, plan=InterviewPlan(questions=[q("Q1", 120), q("Q2", 120)], allowed_tech_stack=[]))
+    s = InterviewState(plan=plan, session_id="t")
+
+    def bare(cls, ctx=None):
+        agent = object.__new__(cls)  # no live session needed for the guards
+        agent.s, agent._chat_ctx = s, ctx or ChatContext.empty()
+
+        async def keep_history(_ctx):  # advancing trims history through the live session; not under test
+            pass
+
+        agent.update_chat_ctx = keep_history
+        return agent
+
+    def refused(call) -> bool:
+        try:
+            asyncio.run(call)
+        except ToolError:
+            return True
+        return False
+
+    interviewer, consent, closing = bare(iv.InterviewerAgent), bare(iv.ConsentTask), bare(iv.ClosingAgent)
+    assert refused(interviewer.advance_to_next_question()) and s.idx == 0
+    assert refused(interviewer.candidate_wants_to_end())
+    assert refused(consent.consent_given()) and refused(consent.consent_declined())
+    assert refused(closing.end_interview())
+    assert s.guard_refusals == 5  # each refusal counts towards the outcome metrics
+
+    s.answers = ["an answer"]
+    assert not refused(interviewer.advance_to_next_question()) and s.idx == 1
+    s.answers, s.time_up = [], True  # time up moves on even with no answer to this question
+    assert not refused(interviewer.advance_to_next_question())
+
+
+def test_observer_counts_clarifications_on_the_same_question(monkeypatch):
+    import asyncio
+    from types import SimpleNamespace
+
+    from guru.session import observer as interviewer
+
+    labels = iter(["clarification", "answer"])
+
+    async def fake_generate_json(*_, **__):
+        return ObserverNote(coverage=0, depth="shallow", signals_hit=[], signals_missing=[], red_flags=[],
+                            suggested_followup=None, latest_turn=next(labels))
+
+    monkeypatch.setattr(interviewer, "generate_json", fake_generate_json)
+    plan = Plan(job=JOB, plan=InterviewPlan(questions=[q("Q1", 120), q("Q2", 120)], allowed_tech_stack=[]))
+    s = InterviewState(plan=plan, session_id="t")
+    agent = SimpleNamespace(s=s)
+    session = SimpleNamespace(current_agent=agent)
+    asyncio.run(interviewer.observe(session, agent, "what was the other part?", "what was the other part?"))
+    asyncio.run(interviewer.observe(session, agent, "an answer", "an answer"))
+    assert s.clarifications == 1
+    assert "latest_turn" not in s.note  # the label is for counting, not shown to the interviewer
 
 
 def test_silence_checks_in_then_ends():
     import asyncio
 
-    from guru.interviewer import SILENCE_GOODBYE, STILL_THERE, on_silence
+    from guru.phrases import SILENCE_GOODBYE, STILL_THERE
+    from guru.session.lifecycle import on_silence
 
     class Done:
         def __await__(self):
@@ -93,12 +163,12 @@ def test_silence_checks_in_then_ends():
             self.closed = True
 
     plan = Plan(job=JOB, plan=InterviewPlan(questions=[q("Q1", 120)], allowed_tech_stack=[]))
-    s, session = State(plan=plan, session_id="t"), FakeSession()
+    s, session = InterviewState(plan=plan, session_id="t"), FakeSession()
     asyncio.run(on_silence(session, s))  # type: ignore[arg-type]
-    assert session.said == [] and s.silence_prompts == 0  # agent hasn't finished a turn: not silence yet
+    assert session.said == [] and s.silence_prompts == 0  # the agent still owes its first reply: not silence
     assert session.resets == 1  # "away" cleared so LiveKit re-arms after the agent's turn
     session.resets = 0
-    s.agent_turn_done = True
+    s.awaiting_reply = False  # the agent's turn ended; noise without a candidate turn doesn't change this
     for _ in range(config.SILENCE_PROMPTS):
         asyncio.run(on_silence(session, s))  # type: ignore[arg-type]
     assert session.said == [STILL_THERE] * config.SILENCE_PROMPTS and not session.closed
@@ -111,7 +181,7 @@ def test_system_prompt_is_fixed_for_the_interview():
     """Prompt caching needs an identical prefix across turns (§3.4): question, follow-ups, notes
     and time-up live in current_question_block, never in the system prompt."""
     plan = Plan(job=JOB, plan=InterviewPlan(questions=[q("Q1", 120), q("Q2", 120)], allowed_tech_stack=["Python"]))
-    s = State(plan=plan, session_id="t")
+    s = InterviewState(plan=plan, session_id="t")
     a = interviewer_instructions(s)
     s.idx, s.note, s.answers, s.time_up = 1, json.dumps({"depth": "deep"}), ["a"], True
     assert interviewer_instructions(s) == a
@@ -122,11 +192,11 @@ def test_split_answer_is_observed_once(monkeypatch):
     import asyncio
     from types import SimpleNamespace
 
-    from guru import interviewer
+    from guru.session import observer as interviewer
 
     graded, cancelled = [], []
 
-    async def fake_observe(session, agent, answer):
+    async def fake_observe(session, agent, answer, latest):
         try:
             await asyncio.sleep(0.05)
             graded.append(answer)
@@ -136,7 +206,7 @@ def test_split_answer_is_observed_once(monkeypatch):
 
     monkeypatch.setattr(interviewer, "observe", fake_observe)
     plan = Plan(job=JOB, plan=InterviewPlan(questions=[q("Q1", 120), q("Q2", 120)], allowed_tech_stack=[]))
-    s = State(plan=plan, session_id="t")
+    s = InterviewState(plan=plan, session_id="t")
     agent = SimpleNamespace(s=s)
 
     async def run():
@@ -179,3 +249,75 @@ def test_scorer_uses_one_model_per_session(monkeypatch):
     assert n >= 2 and out["model"] == config.SCORER_MODEL
     assert {c["rationale"] for c in out["criteria"]} == {"gemini"}  # every final score from one judge
     assert [p for p, _ in calls[-n:]] == ["gemini"] * n
+
+
+def test_fixed_lines_cover_every_case():
+    from guru.agents.closing import ENDINGS
+    from guru.phrases import CLOSING_OPENERS
+
+    assert set(CLOSING_OPENERS) == set(ENDINGS)  # every handoff to closing has an opening line
+
+
+def test_last_spoken_skips_a_line_that_was_cut_off():
+    from livekit.agents import Agent
+
+    from guru.agents.guards import last_spoken
+
+    agent = Agent(instructions="x")
+    ctx = agent.chat_ctx.copy()
+    ctx.add_message(role="assistant", content="How would you design it?")
+    ctx.add_message(role="user", content="hmm")
+    agent._chat_ctx = ctx
+    assert last_spoken(agent) == "How would you design it?"
+
+    ctx.add_message(role="assistant", content="That's a great question, but I don't have that inf", interrupted=True)
+    assert last_spoken(agent) is None  # half a sentence is never repeated
+
+
+def test_lookup_without_an_answer_speaks_the_fixed_line_and_skips_the_reply(monkeypatch):
+    import asyncio
+
+    from livekit.agents import Agent, ToolResult
+
+    from guru import kb
+    from guru.agents import company_lookup
+    from guru.phrases import NO_INFO, NO_INFO_CLOSING
+
+    s = InterviewState(plan=Plan.model_validate_json(config.PLAN_PATH.read_text(encoding="utf-8")), session_id="t")
+    said: list[str] = []
+    agent = Agent(instructions="x")
+    ctx = agent.chat_ctx.copy()
+    ctx.add_message(role="assistant", content="What would you monitor after release?")
+    agent._chat_ctx = ctx
+
+    class Session:
+        current_agent = agent
+
+        def say(self, text, **_):
+            said.append(text)
+
+    class Context:
+        session = Session()
+
+        def with_filler(self, *_a, **_k):
+            import contextlib
+            return contextlib.nullcontext()
+
+    async def no_answer(*_a, **_k):
+        return {"status": "NO_ANSWER", "chunks": [], "source_urls": []}
+
+    monkeypatch.setattr(kb, "lookup", no_answer)
+    out = asyncio.run(company_lookup.lookup_tool.__wrapped__(s, "on-call?", Context()))
+    assert isinstance(out, ToolResult) and out.reply_required is False
+    assert said == [NO_INFO + " Coming back to my question: What would you monitor after release?"]
+
+    s.ending = "completed"  # in closing: invite the next question instead
+    asyncio.run(company_lookup.lookup_tool.__wrapped__(s, "on-call?", Context()))
+    assert said[-1] == NO_INFO_CLOSING
+
+    async def answer(*_a, **_k):
+        return {"status": "ANSWER", "chunks": ["Weekly rotation."], "source_urls": ["u"]}
+
+    monkeypatch.setattr(kb, "lookup", answer)
+    assert isinstance(asyncio.run(company_lookup.lookup_tool.__wrapped__(s, "on-call?", Context())), str)  # model answers
+    assert len(said) == 2  # nothing spoken by the tool
