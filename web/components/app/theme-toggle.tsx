@@ -65,11 +65,11 @@ export function ThemeButton() {
     <button
       type="button"
       onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
-      className="hover:border-primary hover:text-primary grid size-8 cursor-pointer place-items-center rounded-full border transition-colors"
+      className="hover:bg-accent bg-background grid size-8 cursor-pointer place-items-center rounded-md border shadow-xs transition-colors"
     >
       <span className="sr-only">Toggle light/dark theme</span>
-      <MoonIcon size={15} className="dark:hidden" />
-      <SunIcon size={15} className="hidden dark:block" />
+      <MoonIcon size={15} className="animate-in spin-in-90 duration-300 dark:hidden" />
+      <SunIcon size={15} className="animate-in spin-in-90 hidden duration-300 dark:block" />
     </button>
   );
 }

@@ -7,6 +7,7 @@ import { useAgent, useSession, useSessionContext } from '@livekit/components-rea
 import { AgentSessionProvider } from '@/components/agents-ui/agent-session-provider';
 import { AgentSessionView_01 } from '@/components/agents-ui/blocks/agent-session-view-01';
 import { StartAudioButton } from '@/components/agents-ui/start-audio-button';
+import { Logo } from '@/components/guru/ui';
 import { MicCheck } from '@/components/interview/mic-check';
 import { Button } from '@/components/ui/button';
 import { ApiError, type InterviewInfo, api } from '@/lib/api';
@@ -46,7 +47,8 @@ export function InterviewApp({ id }: { id: string }) {
 
   return (
     <AgentSessionProvider session={session}>
-      <main className="bg-grid grid min-h-svh place-items-center p-4">
+      <main className="bg-grid relative grid min-h-svh place-items-center overflow-hidden p-4">
+        <Backdrop />
         {error && <Message title="Can’t open this interview" body={error} />}
         {!error && !info && <p className="text-muted-foreground text-sm">Loading…</p>}
         {info && <Flow info={info} startedAt={startedAt} />}
@@ -66,7 +68,8 @@ function Message({
   children?: React.ReactNode;
 }) {
   return (
-    <section className="flex max-w-md flex-col items-center gap-2 text-center">
+    <section className="bg-card/80 animate-rise relative flex max-w-md flex-col items-center gap-2 rounded-2xl border p-8 text-center shadow-xl backdrop-blur">
+      <Logo className="mb-2 size-12" />
       <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
       <p className="text-muted-foreground">{body}</p>
       {children}
@@ -185,15 +188,13 @@ function Flow({ info, startedAt }: { info: InterviewInfo; startedAt: string | nu
 
   const ready = checked.every(Boolean) && micOk;
   return (
-    <section className="bg-card animate-in fade-in slide-in-from-bottom-2 flex w-full max-w-lg flex-col gap-6 rounded-2xl border p-7 shadow-[0_15px_40px_-10px_#9564dd33] duration-500 motion-reduce:animate-none">
+    <section className="bg-card/85 animate-rise shadow-primary/10 relative flex w-full max-w-lg flex-col gap-6 rounded-2xl border p-7 shadow-2xl backdrop-blur-xl">
       <div>
-        <p className="text-muted-foreground flex items-center gap-2 font-mono text-[11px] tracking-widest uppercase">
-          <span className="bg-primary inline-block size-1.5 rounded-full" />
-          {info.company_name}
-        </p>
-        <h1 className="text-brand mt-2 w-fit text-3xl font-semibold tracking-[-0.04em]">
-          {info.job_title}
-        </h1>
+        <div className="flex items-center gap-3">
+          <Logo className="size-10" />
+          <p className="text-muted-foreground text-sm font-medium">{info.company_name}</p>
+        </div>
+        <h1 className="mt-4 text-3xl font-semibold tracking-tight">{info.job_title}</h1>
         <p className="text-muted-foreground mt-1 text-sm">
           {info.candidate_name ? `Hi ${info.candidate_name}. ` : ''}A voice interview of about{' '}
           {Math.round(info.max_duration_sec / 60)} minutes. Find a quiet place and use headphones if
@@ -202,11 +203,14 @@ function Flow({ info, startedAt }: { info: InterviewInfo; startedAt: string | nu
       </div>
 
       <fieldset className="flex flex-col gap-3">
-        <legend className="text-muted-foreground mb-2 font-mono text-[11px] tracking-widest uppercase">
+        <legend className="text-muted-foreground mb-2 text-xs font-semibold tracking-wider uppercase">
           Before you start
         </legend>
         {CONSENTS.map((c, i) => (
-          <label key={i} className="flex items-start gap-3 text-sm">
+          <label
+            key={i}
+            className="has-checked:border-primary/40 has-checked:bg-primary/5 hover:bg-accent/40 flex cursor-pointer items-start gap-3 rounded-lg border p-3 text-sm transition-colors"
+          >
             <input
               type="checkbox"
               className="accent-primary mt-0.5 size-4"
@@ -233,6 +237,47 @@ function Flow({ info, startedAt }: { info: InterviewInfo; startedAt: string | nu
         time.
       </p>
     </section>
+  );
+}
+
+/** Slow-drifting blurred orbs behind the pre-join card. */
+function Backdrop() {
+  return (
+    <svg aria-hidden className="pointer-events-none absolute inset-0 -z-0 size-full opacity-70">
+      <defs>
+        <filter id="blur-orb">
+          <feGaussianBlur stdDeviation="60" />
+        </filter>
+      </defs>
+      <g filter="url(#blur-orb)">
+        <circle
+          cx="20%"
+          cy="25%"
+          r="160"
+          fill="var(--primary)"
+          opacity="0.35"
+          className="animate-float"
+        />
+        <circle
+          cx="80%"
+          cy="70%"
+          r="200"
+          fill="var(--chart-2)"
+          opacity="0.18"
+          className="animate-float"
+          style={{ animationDelay: '-3s', animationDuration: '9s' }}
+        />
+        <circle
+          cx="70%"
+          cy="15%"
+          r="110"
+          fill="var(--chart-4)"
+          opacity="0.15"
+          className="animate-float"
+          style={{ animationDelay: '-5s', animationDuration: '11s' }}
+        />
+      </g>
+    </svg>
   );
 }
 

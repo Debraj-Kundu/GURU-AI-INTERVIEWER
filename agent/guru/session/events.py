@@ -93,6 +93,8 @@ class SessionEvents:
                 function_name="conversation_item_added",
                 output={"role": role, "question": s.idx + 1, "text": item.text_content},
             )
+        if role == "assistant":
+            s.interviewer_spoke = True
         if role == "user":
             s.silence_prompts = 0  # any real input (voice or text) restarts the check-in count
             s.awaiting_reply = True
@@ -100,7 +102,7 @@ class SessionEvents:
             return
         if session.current_agent is not self.agent:
             return  # consent/closing turns are not graded
-        s.answers.append(item.text_content or "")
+        s.record_answer(item.text_content or "")
         observe_latest(session, self.agent)
 
     def _closed(self, ev) -> None:

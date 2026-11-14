@@ -137,7 +137,9 @@ export function QuestionsSection({ value, onChange }: SectionProps) {
       </div>
       <ErrorText>{error}</ErrorText>
       {value.questions.length === 0 && (
-        <Card className="text-muted-foreground text-center text-sm">No questions yet.</Card>
+        <Card className="text-muted-foreground text-center text-sm">
+          No questions yet. The planner will write them from the job description.
+        </Card>
       )}
       {value.questions.map((q, i) => (
         <Card key={i} className="grid gap-3 md:grid-cols-[1fr_10rem_8rem_auto]">
@@ -242,7 +244,9 @@ export function CriteriaSection({ value, onChange }: SectionProps) {
         </Button>
       </div>
       {value.criteria.length === 0 && (
-        <Card className="text-muted-foreground text-center text-sm">No criteria yet.</Card>
+        <Card className="text-muted-foreground text-center text-sm">
+          No criteria yet. The planner will derive them from the job description.
+        </Card>
       )}
       {value.criteria.map((c, i) => (
         <Card key={i} className="flex flex-col gap-3">

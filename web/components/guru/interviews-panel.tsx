@@ -2,8 +2,26 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ArrowClockwiseIcon, CopyIcon, LinkIcon } from '@phosphor-icons/react';
-import { Card, ErrorText, Input, StatusBadge, Tabs, formatDuration } from '@/components/guru/ui';
+import {
+  ArrowClockwiseIcon,
+  CheckIcon,
+  ClockIcon,
+  CopyIcon,
+  EyeIcon,
+  LinkIcon,
+} from '@phosphor-icons/react';
+import {
+  Avatar,
+  Card,
+  Count,
+  EmptyState,
+  ErrorText,
+  Input,
+  ScoreRing,
+  StatusBadge,
+  Tabs,
+  formatDuration,
+} from '@/components/guru/ui';
 import { Button } from '@/components/ui/button';
 import { API_URL, type SessionSummary, api } from '@/lib/api';
 
@@ -69,11 +87,34 @@ export function InterviewsPanel({ jobId, canCreate }: { jobId: string; canCreate
 
   return (
     <div className="flex flex-col gap-4">
-      <Card className="flex flex-col gap-2 p-4">
-        <span className="text-muted-foreground font-mono text-[11px] tracking-widest uppercase">
-          Invite a candidate
-        </span>
-        <div className="flex flex-col gap-2">
+      <Card className="relative flex flex-col gap-3 overflow-hidden p-4">
+        <svg
+          aria-hidden
+          viewBox="0 0 200 60"
+          className="text-primary/10 pointer-events-none absolute -top-2 -right-6 h-20 w-56"
+        >
+          {Array.from({ length: 24 }, (_, i) => {
+            const h = 8 + Math.abs(Math.sin(i * 0.9)) * 40;
+            return (
+              <rect
+                key={i}
+                x={i * 8}
+                y={30 - h / 2}
+                width="4"
+                height={h}
+                rx="2"
+                fill="currentColor"
+              />
+            );
+          })}
+        </svg>
+        <div className="relative">
+          <p className="font-medium">Invite a candidate</p>
+          <p className="text-muted-foreground text-xs">
+            Share a private link to a voice interview.
+          </p>
+        </div>
+        <div className="relative flex flex-col gap-2">
           <Input
             placeholder="Candidate name (optional)"
             value={name}
@@ -92,50 +133,85 @@ export function InterviewsPanel({ jobId, canCreate }: { jobId: string; canCreate
       </Card>
 
       <Tabs
+        className="w-full"
         tabs={[
-          { id: 'upcoming', label: `Upcoming (${upcoming.length})` },
-          { id: 'completed', label: `Completed (${sessions.length - upcoming.length})` },
+          {
+            id: 'upcoming',
+            label: (
+              <>
+                Upcoming <Count n={upcoming.length} />
+              </>
+            ),
+          },
+          {
+            id: 'completed',
+            label: (
+              <>
+                Completed <Count n={sessions.length - upcoming.length} />
+              </>
+            ),
+          },
         ]}
         value={view}
         onChange={setView}
       />
       {shown.length === 0 && (
-        <p className="text-muted-foreground py-4 text-center text-sm">No interviews here.</p>
+        <EmptyState
+          className="py-8"
+          title={view === 'upcoming' ? 'No upcoming interviews' : 'No completed interviews'}
+          body={view === 'upcoming' ? 'Generate a link above to invite someone.' : undefined}
+        />
       )}
       <ul className="flex flex-col gap-2">
-        {shown.map((s) => (
-          <li key={s.id}>
-            <Card className="flex flex-wrap items-center gap-2 p-4 text-sm">
-              <span className="w-full font-medium">{s.candidate_name || 'Unnamed candidate'}</span>
-              <span className="text-muted-foreground w-full font-mono text-[11px]">
-                {new Date(s.created_at).toLocaleString()} · {formatDuration(s.duration_sec)}
-              </span>
-              <StatusBadge status={s.expired ? 'expired' : s.status} />
-              {s.status === 'completed' && <StatusBadge status={s.score_status} />}
-              {s.overall != null && (
-                <span className="ml-auto font-mono text-sm">{s.overall.toFixed(2)} / 5</span>
-              )}
-              {s.expired && (
-                <Button variant="outline" size="sm" onClick={() => renew(s.id)}>
-                  <ArrowClockwiseIcon /> Renew link
-                </Button>
-              )}
-              {((s.status === 'created' && !s.expired) || s.status === 'active') && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() =>
-                    navigator.clipboard.writeText(link(s.id)).then(() => setCopied(s.id))
-                  }
-                >
-                  <CopyIcon /> {copied === s.id ? 'Copied' : 'Copy link'}
-                </Button>
-              )}
-              {s.status === 'completed' && (
-                <Button asChild variant="outline" size="sm">
-                  <Link href={`/sessions/${s.id}`}>Review</Link>
-                </Button>
-              )}
+        {shown.map((s, i) => (
+          <li key={s.id} className="animate-rise" style={{ animationDelay: `${i * 40}ms` }}>
+            <Card className="hover:border-primary/30 flex flex-wrap items-center gap-3 p-4 text-sm transition-colors">
+              <div className="flex min-w-0 flex-1 items-center gap-3">
+                <Avatar name={s.candidate_name || '?'} />
+                <div className="min-w-0">
+                  <p className="truncate font-medium">{s.candidate_name || 'Unnamed candidate'}</p>
+                  <p className="text-muted-foreground flex items-center gap-1 text-xs">
+                    {new Date(s.created_at).toLocaleDateString(undefined, {
+                      month: 'short',
+                      day: 'numeric',
+                      hour: 'numeric',
+                      minute: '2-digit',
+                    })}
+                    <span>·</span>
+                    <ClockIcon /> {formatDuration(s.duration_sec)}
+                  </p>
+                </div>
+              </div>
+              {s.status === 'completed' && <ScoreRing value={s.overall} size={44} />}
+              <div className="flex w-full flex-wrap items-center gap-1.5">
+                <StatusBadge status={s.expired ? 'expired' : s.status} />
+                {s.status === 'completed' && <StatusBadge status={s.score_status} />}
+                <span className="flex-1" />
+                {s.expired && (
+                  <Button variant="outline" size="sm" onClick={() => renew(s.id)}>
+                    <ArrowClockwiseIcon /> Renew link
+                  </Button>
+                )}
+                {((s.status === 'created' && !s.expired) || s.status === 'active') && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() =>
+                      navigator.clipboard.writeText(link(s.id)).then(() => setCopied(s.id))
+                    }
+                  >
+                    {copied === s.id ? <CheckIcon className="text-emerald-500" /> : <CopyIcon />}{' '}
+                    {copied === s.id ? 'Copied' : 'Copy link'}
+                  </Button>
+                )}
+                {s.status === 'completed' && (
+                  <Button asChild variant="outline" size="sm">
+                    <Link href={`/sessions/${s.id}`}>
+                      <EyeIcon /> Review
+                    </Link>
+                  </Button>
+                )}
+              </div>
             </Card>
           </li>
         ))}

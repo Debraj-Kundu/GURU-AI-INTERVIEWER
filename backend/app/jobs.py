@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from guru import kb
 from guru.jsonlog import jlog, logged
-from guru.models import QuestionBank, Criterion, Plan
+from guru.models import QuestionBank, Criterion
 from guru.planner import make_plan
 
 from . import settings, storage
@@ -311,7 +311,9 @@ def plan_out(p: PlanRow | None, job: JobRow) -> dict:
     if p is None:
         return {"status": "none", "stale": False, "plan": None, "error": None}
     return {"status": p.status, "stale": p.job_version != job.version, "error": p.error,
-            "plan": p.plan["plan"] if p.plan else None, "updated_at": p.updated_at}
+            "plan": p.plan["plan"] if p.plan else None, "updated_at": p.updated_at,
+            # the criteria this plan scores against: the role's own, or derived from the job description
+            "criteria": p.plan["job"]["criteria"] if p.plan else None}
 
 
 @router.get("/jobs/{job_id}/plan")
@@ -323,8 +325,7 @@ async def read_plan(job_id: str, db: AsyncSession = Depends(get_db)):
 @router.post("/jobs/{job_id}/plan", status_code=202)
 async def generate_plan(job_id: str, db: AsyncSession = Depends(get_db)):
     job = await get_job(db, job_id)
-    if not job.questions or not job.criteria:
-        raise HTTPException(422, "Add at least one question and one scoring criterion first.")
+    # Questions and criteria are optional: the planner derives them from the job description.
     row = await db.get(PlanRow, job_id)
     if row and row.status == "generating":  # single-flight per job (PLAN §4.4)
         raise HTTPException(409, "A plan is already being generated.")
@@ -349,8 +350,7 @@ async def _plan(job_id: str, version: int) -> None:
         )
         summary = "\n\n".join(excerpts)
     try:
-        gj = guru_job(job)
-        plan = Plan(job=gj, plan=await make_plan(gj, summary))
+        plan = await make_plan(guru_job(job), summary)  # the job as planned: derived criteria if none were given
         fields = {"status": "ready", "plan": plan.model_dump(mode="json"), "error": None}
     except Exception as e:
         jlog("Plan generation failed", function_name="_plan", output={"job_id": job_id}, err=e, level=logging.ERROR)

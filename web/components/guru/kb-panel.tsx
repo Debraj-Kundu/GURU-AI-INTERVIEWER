@@ -1,8 +1,18 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowClockwiseIcon, FileArrowUpIcon, LinkIcon, TrashIcon } from '@phosphor-icons/react';
-import { Card, ErrorText, Input, StatusBadge, usePoll } from '@/components/guru/ui';
+import {
+  ArrowClockwiseIcon,
+  CloudArrowUpIcon,
+  FileCsvIcon,
+  FileDocIcon,
+  FilePdfIcon,
+  FileTextIcon,
+  GlobeIcon,
+  LinkIcon,
+  TrashIcon,
+} from '@phosphor-icons/react';
+import { Card, EmptyState, ErrorText, Input, StatusBadge, usePoll } from '@/components/guru/ui';
 import { Button } from '@/components/ui/button';
 import { type Source, api } from '@/lib/api';
 import { cn } from '@/lib/shadcn/utils';
@@ -16,6 +26,17 @@ function size(bytes: number | null) {
   return bytes > 1024 * 1024
     ? `${(bytes / 1024 / 1024).toFixed(1)} MB`
     : `${Math.ceil(bytes / 1024)} KB`;
+}
+
+function SourceIcon({ s }: { s: Source }) {
+  const Icon =
+    { url: GlobeIcon, pdf: FilePdfIcon, docx: FileDocIcon, csv: FileCsvIcon }[s.kind as string] ??
+    FileTextIcon;
+  return (
+    <span className="bg-primary/10 text-primary grid size-8 shrink-0 place-items-center rounded-md">
+      <Icon size={18} weight="duotone" />
+    </span>
+  );
 }
 
 /** The company's knowledge base, shared by all of its roles. */
@@ -98,11 +119,20 @@ export function KnowledgeBasePanel({ companyId }: { companyId: string }) {
             upload(Array.from(e.dataTransfer.files));
           }}
           className={cn(
-            'flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed p-6 text-center transition-colors',
-            dragging ? 'border-primary bg-accent' : 'hover:border-ring'
+            'group flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed p-6 text-center transition-all',
+            dragging
+              ? 'border-primary bg-primary/5 scale-[1.01]'
+              : 'hover:border-primary/50 hover:bg-accent/40'
           )}
         >
-          <FileArrowUpIcon className="size-8" />
+          <span
+            className={cn(
+              'bg-primary/10 text-primary grid size-12 place-items-center rounded-full transition-transform group-hover:-translate-y-0.5',
+              (dragging || uploading > 0) && 'animate-bounce'
+            )}
+          >
+            <CloudArrowUpIcon size={26} weight="duotone" />
+          </span>
           <span className="text-sm font-medium">
             {uploading
               ? `Uploading ${uploading} file${uploading > 1 ? 's' : ''}…`
@@ -124,7 +154,7 @@ export function KnowledgeBasePanel({ companyId }: { companyId: string }) {
 
         <Card className="flex flex-col justify-center gap-2">
           <span className="flex items-center gap-2 text-sm font-medium">
-            <LinkIcon /> Add a web page
+            <LinkIcon className="text-primary" /> Add a web page
           </span>
           <div className="flex gap-2">
             <Input
@@ -149,21 +179,26 @@ export function KnowledgeBasePanel({ companyId }: { companyId: string }) {
       ))}
 
       <Card className="p-0">
-        <div className="text-muted-foreground flex items-center justify-between border-b px-5 py-3 text-xs">
+        <div className="text-muted-foreground bg-muted/40 flex items-center justify-between rounded-t-xl border-b px-5 py-3 text-xs">
           <span>
             {sources.length} source{sources.length === 1 ? '' : 's'} · {ready.length} ready ·{' '}
             {ready.reduce((n, s) => n + s.chunks, 0)} chunks
           </span>
         </div>
         {sources.length === 0 && (
-          <p className="text-muted-foreground p-5 text-center text-sm">No sources yet.</p>
+          <EmptyState
+            className="m-4 border-0"
+            title="No sources yet"
+            body="Upload docs or add pages so the interviewer can answer company questions."
+          />
         )}
         <ul className="divide-y">
           {sources.map((s) => (
-            <li key={s.id} className="flex flex-wrap items-center gap-3 px-5 py-3">
-              <span className="bg-muted rounded px-1.5 py-0.5 font-mono text-[10px] uppercase">
-                {s.kind}
-              </span>
+            <li
+              key={s.id}
+              className="hover:bg-muted/40 animate-rise flex flex-wrap items-center gap-3 px-5 py-3 transition-colors"
+            >
+              <SourceIcon s={s} />
               <span className="min-w-0 flex-1 truncate text-sm" title={s.name}>
                 {s.name}
               </span>

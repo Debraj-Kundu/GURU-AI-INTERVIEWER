@@ -94,10 +94,9 @@ PLANNER = """\
 Given a job description, a question bank, scoring criteria with weights, a company summary,
 and a total interview duration of {max_duration_sec} seconds, produce an interview plan JSON.
 Reserve {closing_sec} seconds for the intro and candidate questions at the end.
-- questions: select and order bank questions that fit the remaining time, prioritising those
-  linked to the highest-weighted criteria. Add at most {n} gap-filling questions only if the
-  bank misses a key JD requirement. For each: expected_signals (3-6), follow_up_probes (2-3),
-  time_budget_sec, linked_criteria (criterion ids).
+{questions_rule}
+  For each question: expected_signals (3-6), follow_up_probes (2-3), time_budget_sec,
+  linked_criteria (criterion ids from the scoring criteria).
 - skipped_questions: bank questions left out, with a one-line reason.
 - allowed_tech_stack: technologies, tools, and languages explicitly named in the job
   description. Nothing else.
@@ -121,6 +120,37 @@ Company summary:
 
 # Split in two: the context is identical for every criterion of a session and goes first as its own
 # message, so the per-criterion calls reuse its prompt cache (OpenAI prompt caching guide).
+# The planner's questions rule, depending on whether the recruiter gave a question bank.
+PLANNER_BANK_RULE = """\
+- questions: select and order bank questions that fit the remaining time, prioritising those
+  linked to the highest-weighted criteria. Add at most {n} gap-filling questions only if the
+  bank misses a key JD requirement."""
+PLANNER_NO_BANK_RULE = """\
+- questions: there is no question bank, so write the questions yourself from the job description:
+  the technologies and tools it names, the product, and the work described in sections such as
+  "What you'll do", "Responsibilities" or "The role". Mix questions that probe depth on the named
+  technologies with scenario questions about that work. Cover the highest-weighted criteria first
+  and fit the remaining time. Each question asks about one thing, in at most two short spoken
+  sentences (under 35 words); leave the other angles for follow_up_probes. A long, multi-part
+  question is hard to follow by ear, and candidates ask for it to be repeated."""
+
+# Used when the recruiter gave no scoring criteria (planner.derive_criteria).
+CRITERIA = """\
+Derive scoring criteria for a voice interview for the role "{title}" from its job description.
+Base them on what the job description says the company is looking for: sections such as
+"What we're looking for", "Ideal candidate", "Requirements", "Qualifications", "Must have",
+"Nice to have", or similar. Mark those source "jd". Only if it has no such section, infer them
+from the responsibilities and tech stack, and mark them source "inferred".
+Return 3 to 6 criteria that can be judged from spoken answers (skills, judgement, problem
+solving, communication), not from credentials such as degrees, years of experience, location, or
+work authorisation. Never base a criterion on protected characteristics.
+For each: name (2-4 words), description (one sentence), weight 1-3 (3 = most important for the
+role), and anchors: exactly 5 short descriptions of an answer scoring 1, 2, 3, 4 and 5.
+
+Job description:
+{jd}
+"""
+
 SCORER_CONTEXT = """\
 You are a fair, evidence-based hiring evaluator. You will be asked to score the candidate on one
 criterion using its anchored scale. Cite transcript turn numbers as evidence and give a 1-3 sentence
