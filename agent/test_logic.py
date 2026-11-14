@@ -115,6 +115,23 @@ def test_tools_wait_for_a_candidate_reply():
     assert not refused(interviewer.advance_to_next_question())
 
 
+def test_a_pause_does_not_use_up_a_follow_up():
+    """Session 65aa4287: a pause split one answer into two candidate turns, the interviewer replied
+    once, and the question advanced after one follow-up instead of two."""
+    plan = Plan(job=JOB, plan=InterviewPlan(questions=[q("Q1", 120)], allowed_tech_stack=[]))
+    s = InterviewState(plan=plan, session_id="t")
+    s.question_started_at = __import__("time").monotonic()
+    s.record_answer("Uh, yes. I was just thinking. I'd use retrieval")
+    s.record_answer("and pass the context to the LLM.")  # same answer, after a pause: no interviewer reply between
+    assert s.answers == ["Uh, yes. I was just thinking. I'd use retrieval and pass the context to the LLM."]
+    # The interviewer asked follow-up 1; replying to its answer, it may still ask follow-up 2.
+    # Counting turns (2) forced the advance here.
+    assert "call advance_to_next_question now" not in current_question_block(s)
+    s.interviewer_spoke = True
+    s.record_answer("I'd also lower the temperature.")  # the answer to follow-up 1 is a new answer
+    assert len(s.answers) == 2
+
+
 def test_observer_counts_clarifications_on_the_same_question(monkeypatch):
     import asyncio
     from types import SimpleNamespace
@@ -321,3 +338,56 @@ def test_lookup_without_an_answer_speaks_the_fixed_line_and_skips_the_reply(monk
     monkeypatch.setattr(kb, "lookup", answer)
     assert isinstance(asyncio.run(company_lookup.lookup_tool.__wrapped__(s, "on-call?", Context())), str)  # model answers
     assert len(said) == 2  # nothing spoken by the tool
+
+
+def test_derived_criteria_get_unique_ids_and_scored_anchors():
+    import pytest
+
+    from guru.models import DerivedCriterion
+    from guru.planner import to_criteria
+
+    five = ["weak", "basic", "solid", "strong", "excellent"]
+    out = to_criteria([
+        DerivedCriterion(name="System Design", description="d", weight=3, source="jd", anchors=five),
+        DerivedCriterion(name="System design!", description="d", weight=2, source="jd", anchors=five),
+        DerivedCriterion(name="Broken", description="d", weight=1, source="inferred", anchors=five[:3]),
+    ])
+    assert [c.id for c in out] == ["system_design", "system_design_2"]  # the 3-anchor one is dropped
+    assert out[0].anchors == {"1": "weak", "2": "basic", "3": "solid", "4": "strong", "5": "excellent"}
+    assert out[0].source == "jd"
+    with pytest.raises(ValueError):
+        to_criteria([])
+
+
+def test_planner_fills_in_only_what_is_missing(monkeypatch):
+    import asyncio
+
+    from guru import llm, planner, prompts
+    from guru.models import DerivedCriteria, DerivedCriterion
+
+    prompts_seen: list[str] = []
+
+    async def fake_generate_json(model, prompt, schema, **_):
+        prompts_seen.append(prompt)
+        if schema is DerivedCriteria:
+            five = ["1", "2", "3", "4", "5"]
+            return DerivedCriteria(criteria=[DerivedCriterion(name="API design", description="d", weight=3, source="jd", anchors=five)])
+        return InterviewPlan(questions=[PlannedQuestion(text="q", expected_signals=["s"], follow_up_probes=["p"],
+                                                        time_budget_sec=60, linked_criteria=["api_design", "made_up"])],
+                             allowed_tech_stack=[])
+
+    monkeypatch.setattr(llm, "generate_json", fake_generate_json)
+
+    # Nothing given: criteria are derived first, and the planner is told to write the questions.
+    bare = JOB.model_copy(update={"questions": [], "criteria": []})
+    full = asyncio.run(planner.make_plan(bare, ""))
+    assert [c.id for c in full.job.criteria] == ["api_design"] and full.job.criteria[0].source == "jd"
+    assert prompts.PLANNER_NO_BANK_RULE in prompts_seen[-1]
+    assert full.plan.questions[0].linked_criteria == ["api_design"]  # the made-up link is dropped
+    assert bare.criteria == []  # the role itself isn't changed
+
+    # Both given: no derivation call, and the bank rule is used.
+    prompts_seen.clear()
+    full = asyncio.run(planner.make_plan(JOB, ""))
+    assert len(prompts_seen) == 1 and prompts.PLANNER_NO_BANK_RULE not in prompts_seen[0]
+    assert full.job.criteria == JOB.criteria

@@ -3,8 +3,14 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { PlusIcon } from '@phosphor-icons/react';
-import { ErrorText } from '@/components/guru/ui';
+import {
+  ArrowLeftIcon,
+  BriefcaseIcon,
+  PencilSimpleIcon,
+  PlusIcon,
+  TrashIcon,
+} from '@phosphor-icons/react';
+import { Avatar, ErrorText, SectionTitle, Skeleton } from '@/components/guru/ui';
 import { type Company, type JobSummary, api } from '@/lib/api';
 import { cn } from '@/lib/shadcn/utils';
 
@@ -49,45 +55,60 @@ export function RolesSidebar({
     }
   }
 
-  const action = 'text-muted-foreground hover:text-primary cursor-pointer';
+  const action =
+    'text-muted-foreground hover:text-foreground hover:bg-accent flex cursor-pointer items-center gap-1 rounded-md px-1.5 py-1 transition-colors';
 
   return (
-    <nav aria-label="Roles" className="flex flex-col gap-6">
+    <nav aria-label="Roles" className="animate-rise flex flex-col gap-6">
       <Link
         href="/"
-        className="text-muted-foreground hover:text-primary font-mono text-[11px] tracking-widest uppercase"
+        className="text-muted-foreground hover:text-foreground group flex items-center gap-1.5 text-sm transition-colors"
       >
-        ← All companies
+        <ArrowLeftIcon className="transition-transform group-hover:-translate-x-0.5" /> All
+        companies
       </Link>
       <div className="flex flex-col gap-2">
-        <h2 className="text-lg font-semibold tracking-tight">{company?.name}</h2>
-        <div className="flex gap-3 text-xs">
+        <div className="flex items-center gap-3">
+          {company ? (
+            <Avatar name={company.name} className="size-9 rounded-lg" />
+          ) : (
+            <Skeleton className="size-9 rounded-lg" />
+          )}
+          {company ? (
+            <h2 className="min-w-0 truncate font-semibold tracking-tight">{company.name}</h2>
+          ) : (
+            <Skeleton className="h-4 w-24" />
+          )}
+        </div>
+        <div className="-ml-1.5 flex gap-1 text-xs">
           <button type="button" className={action} onClick={rename}>
-            Rename
+            <PencilSimpleIcon /> Rename
           </button>
-          <button type="button" className={action} onClick={remove}>
-            Delete
+          <button type="button" className={cn(action, 'hover:text-destructive')} onClick={remove}>
+            <TrashIcon /> Delete
           </button>
         </div>
       </div>
       <div className="flex flex-col gap-2">
-        <p className="text-muted-foreground font-mono text-[11px] tracking-widest uppercase">
-          Roles
-        </p>
-        <ul className="flex flex-col">
+        <SectionTitle>Roles</SectionTitle>
+        <ul className="flex flex-col gap-0.5">
           {jobs.map((j) => (
             <li key={j.id}>
               <Link
                 href={`/jobs/${j.id}`}
                 aria-current={j.id === activeId ? 'page' : undefined}
                 className={cn(
-                  'block border-l-2 py-1.5 pl-3 text-sm transition-colors',
+                  'flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors',
                   j.id === activeId
-                    ? 'border-primary text-foreground font-medium'
-                    : 'text-muted-foreground hover:text-foreground border-transparent'
+                    ? 'bg-accent text-accent-foreground font-medium'
+                    : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'
                 )}
               >
-                {j.title}
+                <BriefcaseIcon
+                  className={cn('shrink-0', j.id === activeId && 'text-primary')}
+                  weight={j.id === activeId ? 'fill' : 'regular'}
+                />
+                <span className="truncate">{j.title}</span>
               </Link>
             </li>
           ))}
@@ -96,11 +117,11 @@ export function RolesSidebar({
       <Link
         href={`/companies/${companyId}/new`}
         className={cn(
-          'hover:text-primary flex items-center gap-2 font-mono text-xs tracking-wider uppercase',
-          !activeId ? 'text-primary' : 'text-muted-foreground'
+          'hover:border-primary/50 hover:text-primary flex items-center justify-center gap-2 rounded-md border border-dashed py-2 text-sm font-medium transition-colors',
+          !activeId ? 'border-primary/50 text-primary bg-primary/5' : 'text-muted-foreground'
         )}
       >
-        <PlusIcon /> New role
+        <PlusIcon weight="bold" /> New role
       </Link>
       <ErrorText>{error}</ErrorText>
     </nav>

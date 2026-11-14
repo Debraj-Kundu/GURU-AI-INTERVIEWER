@@ -18,6 +18,24 @@ class Criterion(BaseModel):
     description: str
     weight: float = Field(gt=0)
     anchors: dict[str, str]  # "1".."5" -> behaviour at that level
+    # Who wrote it: the recruiter, or the planner, from a requirements section of the job description
+    # ("jd") or inferred from its responsibilities and tech stack when there's none ("inferred").
+    source: Literal["user", "jd", "inferred"] = "user"
+
+
+class DerivedCriterion(BaseModel):
+    """The planner's output for one generated criterion. Anchors come back as a list of exactly 5
+    (scores 1 to 5) rather than a dict, so the structured-output schema has fixed keys."""
+
+    name: str
+    description: str
+    weight: int = Field(ge=1, le=3)
+    source: Literal["jd", "inferred"]
+    anchors: list[str]
+
+
+class DerivedCriteria(BaseModel):
+    criteria: list[DerivedCriterion]
 
 
 class JobRole(BaseModel):

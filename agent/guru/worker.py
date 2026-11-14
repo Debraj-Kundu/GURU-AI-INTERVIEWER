@@ -67,7 +67,7 @@ async def entrypoint(ctx: JobContext) -> None:
             # Krisp background noise suppression (LiveKit Cloud, no extra cost). Noise once counted as
             # candidate speech with no words (session 7c2b5e92). Not voice isolation (BVC): that is billed
             # separately and can drop a quiet candidate. Don't also enable Krisp in the web client.
-            audio_input=room_io.AudioInputOptions(noise_cancellation=noise_cancellation.BVC()),
+            audio_input=room_io.AudioInputOptions(noise_cancellation=noise_cancellation.NC()),
         ),
         record=False,  # no LiveKit Cloud recording before consent; Phase 2 starts Egress after consent
     )

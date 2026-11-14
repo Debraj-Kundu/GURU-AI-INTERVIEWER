@@ -16,6 +16,9 @@ export type Criterion = {
   description: string;
   weight: number;
   anchors: Record<string, string>; // "1".."5"
+  // Who wrote it: the recruiter, or the planner from the job description ("jd": a requirements
+  // section; "inferred": none, so from the responsibilities and tech stack).
+  source?: 'user' | 'jd' | 'inferred';
 };
 
 export type Company = {
@@ -84,6 +87,7 @@ export type PlanState = {
   error: string | null;
   plan: InterviewPlan | null;
   updated_at?: string;
+  criteria?: Criterion[] | null; // what this plan scores against
 };
 
 export type SessionStatus = 'created' | 'active' | 'completed' | 'declined';

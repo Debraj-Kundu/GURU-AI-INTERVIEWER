@@ -35,7 +35,8 @@ def current_question_block(s: InterviewState) -> str:
     over_time = time.monotonic() - s.question_started_at > q.time_budget_sec
     # Runs in llm_node, which LiveKit starts before it commits the candidate's message: s.answers
     # does not include the answer just given yet, and this block shapes the reply being generated now.
-    # Turns the Observer labelled as clarifications don't count. ponytail: the label lands a few seconds
+    # s.answers joins candidate turns split by a pause (InterviewState.record_answer), so one answer is
+    # one entry. Answers the Observer labelled as clarifications don't count. ponytail: the label lands a few seconds
     # after the turn, and is lost if a quick next turn supersedes that Observer call, so the turn then
     # counts as an answer; company Q&A still counts. Upgrade: have the LLM tag follow-ups via a tool.
     follow_ups = len(s.answers) - s.clarifications
