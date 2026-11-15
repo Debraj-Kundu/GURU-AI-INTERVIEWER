@@ -31,7 +31,7 @@ async def main() -> None:
     notes = await asyncio.gather(
         *(
             generate_json(
-                config.OBSERVER_MODEL,
+                config.OBSERVER_ROUTE,
                 prompts.OBSERVER.format(question=QUESTION, signals="; ".join(SIGNALS), answer=a, latest=a),
                 ObserverNote,
             )

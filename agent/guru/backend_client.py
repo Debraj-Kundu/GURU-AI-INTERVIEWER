@@ -8,6 +8,7 @@ import httpx
 from celery import Celery
 
 from . import config
+from .http_debug import async_hooks
 from .jsonlog import jlog, logged
 from .models import Plan
 
@@ -27,11 +28,12 @@ async def load_plan(metadata: str | None, room: str) -> Plan | None:
     if not is_session_id(metadata):
         jlog("No session in dispatch metadata: using the fixture plan", function_name="load_plan", output={"path": str(config.PLAN_PATH)})
         return Plan.model_validate_json(config.PLAN_PATH.read_text(encoding="utf-8"))
-    async with httpx.AsyncClient(timeout=10, verify=_SSL) as client:
+    async with httpx.AsyncClient(timeout=10, verify=_SSL, event_hooks=async_hooks("guru-api")) as client:
         r = await client.post(
             f"{config.API_URL}/internal/sessions/{metadata}/start",
             json={"room": room},
-            headers={"X-Service-Token": config.SERVICE_TOKEN},
+            # X-Request-ID = session id: one id follows an interview through the agent, queue and API logs.
+            headers={"X-Service-Token": config.SERVICE_TOKEN, "X-Request-ID": metadata},
         )
         if r.status_code == 409:
             return None
@@ -62,11 +64,11 @@ async def post_results(session_id: str, out: dict | None) -> None:
         return
     except Exception as e:
         jlog("Queueing results failed: posting directly", function_name="post_results", err=e, level=logging.WARNING)
-    async with httpx.AsyncClient(timeout=15, verify=_SSL) as client:
+    async with httpx.AsyncClient(timeout=15, verify=_SSL, event_hooks=async_hooks("guru-api")) as client:
         r = await client.post(
             f"{config.API_URL}/internal/sessions/{session_id}/complete",
             json=body,
-            headers={"X-Service-Token": config.SERVICE_TOKEN},
+            headers={"X-Service-Token": config.SERVICE_TOKEN, "X-Request-ID": session_id},
         )
         r.raise_for_status()
     jlog("Results sent to backend", function_name="post_results", output={"session_id": session_id, "consented": body["consented"]})

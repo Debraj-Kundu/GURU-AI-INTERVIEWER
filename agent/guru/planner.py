@@ -52,7 +52,7 @@ def to_criteria(derived: list[DerivedCriterion]) -> list[Criterion]:
 
 async def derive_criteria(job: JobRole) -> list[Criterion]:
     out = await llm.generate_json(
-        config.PLANNER_MODEL, prompts.CRITERIA.format(title=job.title, jd=job.jd_text), DerivedCriteria,
+        config.PLANNER_ROUTE, prompts.CRITERIA.format(title=job.title, jd=job.jd_text), DerivedCriteria,
         timeout=120, session_id=f"job:{job.id}", flex=True, max_tokens=8192,
     )
     return to_criteria(out.criteria)
@@ -76,7 +76,7 @@ async def make_plan(job: JobRole, company_summary: str) -> Plan:
     )
     # flex: planning runs when the recruiter saves the job, not while a candidate waits.
     plan = await llm.generate_json(
-        config.PLANNER_MODEL, prompt, InterviewPlan, timeout=120, session_id=f"job:{job.id}", flex=True,
+        config.PLANNER_ROUTE, prompt, InterviewPlan, timeout=120, session_id=f"job:{job.id}", flex=True,
         max_tokens=16384,  # a full plan is a few thousand tokens; the default 2048 would cut it off
     )
     ids = {c.id for c in job.criteria}

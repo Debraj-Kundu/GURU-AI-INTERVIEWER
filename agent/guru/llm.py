@@ -7,11 +7,13 @@ import logging
 from functools import cache
 from typing import Literal, TypeVar
 
+import httpx
 from google.genai import Client, types
 from openai import AsyncOpenAI
 from pydantic import BaseModel
 
 from . import config
+from .http_debug import async_hooks
 from .jsonlog import jlog
 
 Provider = Literal["auto", "openrouter", "gemini"]
@@ -26,7 +28,11 @@ _gate = asyncio.Semaphore(8)
 def client() -> Client:
     # SDK-level retry: capped exponential backoff with jitter, on 429/5xx only (PLAN §2).
     retry = types.HttpRetryOptions(attempts=3, initial_delay=0.5, max_delay=8, jitter=1)
-    return Client(http_options=types.HttpOptions(retry_options=retry, timeout=60_000))
+    # Our own httpx client so response headers (rate limits, request ids) are logged. Passing one
+    # also switches the SDK's async calls from aiohttp to httpx (google.genai _api_client._use_aiohttp).
+    return Client(http_options=types.HttpOptions(
+        retry_options=retry, timeout=60_000, httpx_async_client=httpx.AsyncClient(event_hooks=async_hooks("gemini")),
+    ))
 
 
 @cache
@@ -37,11 +43,12 @@ def openrouter() -> AsyncOpenAI:
         api_key=config.OPENROUTER_API_KEY,
         max_retries=0,
         default_headers={"X-Title": "Guru"},
+        http_client=httpx.AsyncClient(timeout=httpx.Timeout(120.0, connect=15.0), event_hooks=async_hooks("openrouter")),
     )
 
 
 async def generate_json(
-    model: str,
+    route: config.Route,
     prompt: str,
     schema: type[M],
     timeout: float = 60,
@@ -51,7 +58,7 @@ async def generate_json(
     provider: Provider = "auto",
     max_tokens: int = 2048,
 ) -> M:
-    """`model` is the Gemini fallback for this role; OpenRouter (config.OPENROUTER_MODEL) goes first.
+    """`route` names this role's models (config.*_ROUTE): OpenRouter first, Gemini on any failure.
     Each attempt gets the full `timeout`, so the worst case is about twice that.
     `context` is a shared prefix sent as its own system message so repeated calls hit the prompt cache.
     `session_id` keeps one interview's calls on the same provider (cache hits) and is sent hashed as `user`.
@@ -60,21 +67,21 @@ async def generate_json(
     `max_tokens` caps the output. Unset, OpenRouter reserves the model's whole output limit (65,536)
     against the key's credit and refused every call with 402 once the key's daily limit ran low."""
     if provider == "openrouter":
-        return await _openrouter_json(prompt, schema, timeout, context, session_id, flex, max_tokens)
+        return await _openrouter_json(route.openrouter, prompt, schema, timeout, context, session_id, flex, max_tokens)
     if provider == "gemini":
-        return await _gemini_json(model, prompt, schema, timeout, context, max_tokens)
+        return await _gemini_json(route.gemini, prompt, schema, timeout, context, max_tokens)
     if config.OPENROUTER_API_KEY:
         try:
-            return await _openrouter_json(prompt, schema, timeout, context, session_id, flex, max_tokens)
+            return await _openrouter_json(route.openrouter, prompt, schema, timeout, context, session_id, flex, max_tokens)
         except Exception as e:
             # ponytail: no circuit breaker yet, so a dead primary costs one timeout per call.
             # Phase 2 adds the Redis-backed breaker (PLAN §2) to skip it while it's down.
             log.warning("openrouter failed, falling back to gemini: %s", e)
-    return await _gemini_json(model, prompt, schema, timeout, context, max_tokens)
+    return await _gemini_json(route.gemini, prompt, schema, timeout, context, max_tokens)
 
 
 async def _openrouter_json(
-    prompt: str, schema: type[M], timeout: float, context: str, session_id: str, flex: bool, max_tokens: int
+    model: str, prompt: str, schema: type[M], timeout: float, context: str, session_id: str, flex: bool, max_tokens: int
 ) -> M:
     messages = [{"role": "system", "content": context}] if context else []
     messages.append({"role": "user", "content": prompt})
@@ -85,22 +92,51 @@ async def _openrouter_json(
         body["user"] = hashlib.sha256(session_id.encode()).hexdigest()[:32]
     if flex:
         body["service_tier"] = "flex"  # about half price; falls back only to equal or cheaper endpoints
-    async with _gate:  # timeout starts after the slot is acquired, so queueing isn't a failure
-        async with asyncio.timeout(timeout):
-            resp = await openrouter().chat.completions.create(
-                model=config.OPENROUTER_MODEL,
-                messages=messages,  # type: ignore[arg-type]
-                max_tokens=max_tokens,
-                response_format={
-                    "type": "json_schema",
-                    # strict needs every field required; our schemas have defaults, so validate below.
-                    "json_schema": {"name": schema.__name__, "schema": schema.model_json_schema(), "strict": False},
-                },
-                extra_body=body,
-            )
+    # One retry when OpenRouter answers with no text (seen 3 times on structured calls: the planner and
+    # the scorer, which then re-scored everything on Gemini). Each attempt logs why, if it's empty.
+    for attempt in (1, 2):
+        async with _gate:  # timeout starts after the slot is acquired, so queueing isn't a failure
+            async with asyncio.timeout(timeout):
+                resp = await openrouter().chat.completions.create(
+                    model=model,
+                    messages=messages,  # type: ignore[arg-type]
+                    max_tokens=max_tokens,
+                    response_format={
+                        "type": "json_schema",
+                        # strict needs every field required; our schemas have defaults, so validate below.
+                        "json_schema": {"name": schema.__name__, "schema": schema.model_json_schema(), "strict": False},
+                    },
+                    extra_body=body,
+                )
+        _log_openrouter_usage(model, resp, schema)
+        text = resp.choices[0].message.content if resp.choices else None
+        if text:
+            return schema.model_validate_json(text)
+        why = _empty_reason(resp)
+        jlog("OpenRouter returned no text", function_name="_openrouter_json",
+             output={"schema": schema.__name__, "attempt": attempt, **why}, level=logging.WARNING)
+    raise RuntimeError(f"{model} returned no text ({why})")
+
+
+def _empty_reason(resp) -> dict:
+    """What OpenRouter says about an empty answer: its generation id (for their support/activity
+    page), the upstream provider, and the finish reasons (e.g. "length" when reasoning used up
+    max_tokens, or a content filter)."""
+    choice = resp.choices[0] if resp.choices else None
+    return {
+        "generation_id": resp.id,
+        "provider": (resp.model_extra or {}).get("provider"),
+        "finish_reason": choice.finish_reason if choice else None,
+        "native_finish_reason": (choice.model_extra or {}).get("native_finish_reason") if choice else None,
+        "refusal": choice.message.refusal if choice else None,
+        "choices": len(resp.choices or []),
+    }
+
+
+def _log_openrouter_usage(model: str, resp, schema: type) -> None:
     if u := resp.usage:
         _log_usage(
-            config.OPENROUTER_MODEL,
+            model,
             schema,
             u.prompt_tokens,
             u.prompt_tokens_details and u.prompt_tokens_details.cached_tokens,
@@ -109,10 +145,6 @@ async def _openrouter_json(
             getattr(u, "cost", None),  # OpenRouter extension: USD for this call
             getattr(resp, "service_tier", None),
         )
-    text = resp.choices[0].message.content if resp.choices else None
-    if not text:
-        raise RuntimeError(f"{config.OPENROUTER_MODEL} returned no text")
-    return schema.model_validate_json(text)
 
 
 async def _gemini_json(model: str, prompt: str, schema: type[M], timeout: float, context: str, max_tokens: int) -> M:

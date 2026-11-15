@@ -7,7 +7,20 @@ import boto3
 from botocore.client import Config
 from botocore.exceptions import ClientError
 
+from guru.http_debug import log_http, picked_headers
+
 from . import settings
+
+
+def _log_s3(http_response, parsed, model, **_) -> None:
+    """boto3 after-call event: the request id and allowlisted headers. A 404 from a Head* call is the
+    expected answer to "is it there yet?", not an error."""
+    meta = parsed.get("ResponseMetadata", {}) if isinstance(parsed, dict) else {}
+    status = http_response.status_code
+    if status == 404 and model.name.startswith("Head"):
+        status = 200  # log it like a success (only with LOG_HTTP=debug)
+    headers = picked_headers(meta.get("HTTPHeaders", {})) | {"request_id": meta.get("RequestId")}
+    log_http("s3", model.http.get("method", ""), model.name, status, None, headers)
 
 
 def s3():
@@ -16,7 +29,7 @@ def s3():
 
 @cache  # one client per endpoint: the API's own, and the browser-facing one for presigned URLs
 def _client(endpoint: str | None):
-    return boto3.client(
+    c = boto3.client(
         "s3",
         endpoint_url=endpoint,
         region_name=settings.S3_REGION,
@@ -25,6 +38,8 @@ def _client(endpoint: str | None):
         # path-style so http://localhost:4566/{bucket}/{key} works; SigV4 is required for presigned PUTs
         config=Config(signature_version="s3v4", s3={"addressing_style": "path"}),
     )
+    c.meta.events.register("after-call.s3", _log_s3)
+    return c
 
 
 async def ensure_bucket() -> None:

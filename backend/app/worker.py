@@ -16,6 +16,8 @@ from functools import cache
 import httpx
 from celery import Celery
 
+from guru.http_debug import sync_hooks
+
 from . import ingest, settings
 
 celery = Celery("guru", broker=settings.REDIS_URL)
@@ -81,7 +83,9 @@ def deliver_webhook(self, session_id: str, body: dict) -> None:
     url = f"{settings.guru_config.API_URL}/internal/sessions/{session_id}/complete"
     wait = min(WEBHOOK_MAX_WAIT, 5 * 2**self.request.retries)  # 5, 10, 20 ... 300 s
     try:
-        r = httpx.post(url, json=body, headers={"X-Service-Token": settings.SERVICE_TOKEN}, timeout=30)
+        with httpx.Client(timeout=30, event_hooks=sync_hooks("guru-api")) as client:
+            # X-Request-ID = session id, the same id the agent used, so the API's log lines line up.
+            r = client.post(url, json=body, headers={"X-Service-Token": settings.SERVICE_TOKEN, "X-Request-ID": session_id})
     except httpx.TransportError as e:  # API down or unreachable
         raise self.retry(exc=e, countdown=wait) from e
     if r.status_code >= 500:

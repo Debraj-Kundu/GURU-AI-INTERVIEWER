@@ -1,6 +1,7 @@
 """Session-wide rules that Python, not the LLM, enforces: the interview clock and silence check-ins."""
 
 import asyncio
+import time
 
 from livekit.agents import AgentSession
 
@@ -14,16 +15,29 @@ from ..states import InterviewState
 async def run_timer(session: AgentSession, s: InterviewState) -> None:
     """Python, not the LLM, owns the clock (§3.3)."""
     cap = s.plan.job.max_duration_sec
-    await asyncio.sleep(max(0, cap - config.CLOSING_SEC))
+    await _until(s, cap - config.CLOSING_SEC)
     s.time_up = True
     # The next candidate-turn reply sees time_up in current_question_block; no talking over the candidate.
     jlog("Time up: next reply moves to closing", function_name="run_timer", output={"elapsed_sec": cap - config.CLOSING_SEC})
-    await asyncio.sleep(config.CLOSING_SEC)
+    await _until(s, cap)
     jlog("Hard cap reached: goodbye and shutdown", function_name="run_timer", output={"session_id": s.session_id, "cap_sec": cap})
     s.ending = "hard_cap"
     session.interrupt(force=True)
     await session.say(GOODBYE, allow_interruptions=False)
     session.shutdown()
+
+
+async def _until(s: InterviewState, elapsed: float) -> None:
+    """Sleep until `elapsed` seconds of interview time have passed: wall time since the start, minus
+    time the candidate was disconnected. Never fires while they're away (the rejoin window ends the
+    interview itself if they don't come back)."""
+    while True:
+        left = s.started_at + elapsed + s.paused_sec - time.monotonic()
+        if s.away_since is not None:
+            left = max(left, 1.0)
+        if left <= 0:
+            return
+        await asyncio.sleep(min(left, 5.0))
 
 
 @logged

@@ -28,7 +28,7 @@ async def observe(session: AgentSession, agent: "InterviewerAgent", answer: str,
     )
     jlog("Calling Observer LLM", function_name="observe", output={"question": idx + 1})
     try:
-        note = await generate_json(config.OBSERVER_MODEL, prompt, ObserverNote, timeout=10, session_id=s.session_id)
+        note = await generate_json(config.OBSERVER_ROUTE, prompt, ObserverNote, timeout=10, session_id=s.session_id)
     except Exception as e:
         # interview continues without the hint
         jlog("Observer failed, continuing without a note", function_name="observe", err=e, level=logging.ERROR)

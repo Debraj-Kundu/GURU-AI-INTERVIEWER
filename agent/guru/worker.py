@@ -1,6 +1,8 @@
 """The LiveKit worker: one entrypoint run per interview. It builds the parts (state, pipeline,
 agents, event handlers) and starts the session; the behaviour lives in agents/ and session/."""
 
+import asyncio
+import logging
 import time
 
 from livekit.agents import (
@@ -81,7 +83,18 @@ async def entrypoint(ctx: JobContext) -> None:
         ]
     )
     await background.start(room=ctx.room, agent_session=session)
-    ctx.add_shutdown_callback(background.aclose)
+
+    async def _close_background() -> None:
+        # Bounded: LiveKit disconnects the room before running shutdown callbacks, and the player's
+        # aclose() then awaits unpublish_track on that dead room. The job outlived the supervisor's
+        # 10 s shutdown_process_timeout and was killed (session 4adbc327, "could not find publication
+        # to remove"). Nothing is left to unpublish by then, so give up after 2 s.
+        try:
+            await asyncio.wait_for(background.aclose(), 2)
+        except TimeoutError:
+            jlog("Background audio close timed out (room already gone)", function_name="entrypoint", level=logging.WARNING)
+
+    ctx.add_shutdown_callback(_close_background)
     jlog(
         "Session started",
         function_name="entrypoint",

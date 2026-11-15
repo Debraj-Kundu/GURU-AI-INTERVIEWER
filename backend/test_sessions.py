@@ -121,7 +121,7 @@ def test_webhook_retries_until_the_api_accepts(monkeypatch):
             raise r
         return httpx.Response(r, json={}, request=httpx.Request("POST", url))
 
-    monkeypatch.setattr(worker.httpx, "post", fake_post)
+    monkeypatch.setattr(worker.httpx.Client, "post", lambda self, url, **kw: fake_post(url, **kw))
     waits: list[int] = []
 
     class Retry(Exception):
@@ -142,6 +142,26 @@ def test_webhook_retries_until_the_api_accepts(monkeypatch):
     assert waits == [5, 10] and len(posted) == 3  # down, 503, then delivered: no third retry
 
     # 4xx: retrying can't fix it, so it stops without a retry.
-    monkeypatch.setattr(worker.httpx, "post", lambda url, **_: httpx.Response(401, request=httpx.Request("POST", url)))
+    monkeypatch.setattr(worker.httpx.Client, "post", lambda self, url, **_: httpx.Response(401, request=httpx.Request("POST", url)))
     task.run("s1", {"consented": False})
     assert waits == [5, 10]
+
+
+def test_api_responses_carry_a_request_id():
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+
+    app.router.lifespan_context = _no_lifespan
+    with TestClient(app) as c:
+        r = c.get("/healthz", headers={"X-Request-ID": "sess123"})
+        assert r.headers["x-request-id"] == "sess123"  # the caller's id is kept
+        assert len(c.get("/healthz").headers["x-request-id"]) == 16  # else a new one
+
+
+from contextlib import asynccontextmanager
+
+
+@asynccontextmanager
+async def _no_lifespan(_app):
+    yield

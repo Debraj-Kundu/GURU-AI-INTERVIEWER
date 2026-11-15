@@ -8,6 +8,8 @@ from urllib.parse import urljoin, urlsplit
 
 import httpx
 
+from guru.http_debug import async_hooks
+
 from .parsers import ParseError
 
 USER_AGENT = "GuruBot/0.1 (interview knowledge-base ingest)"
@@ -52,7 +54,8 @@ async def _get(client: httpx.AsyncClient, url: str) -> tuple[bytes, str]:
 
 
 async def fetch_page(url: str) -> bytes:
-    async with httpx.AsyncClient(timeout=TIMEOUT, follow_redirects=False, headers={"User-Agent": USER_AGENT}) as client:
+    async with httpx.AsyncClient(timeout=TIMEOUT, follow_redirects=False, headers={"User-Agent": USER_AGENT},
+                                 event_hooks=async_hooks("web-fetch")) as client:
         parts = urlsplit(url)
         robots = urllib.robotparser.RobotFileParser()
         try:

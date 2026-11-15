@@ -1405,7 +1405,7 @@ dependencies = [
     { name = "celery", extra = ["redis"] },
     { name = "google-genai" },
     { name = "httpx" },
-    { name = "livekit-agents", extra = ["deepgram", "elevenlabs", "google", "openai", "silero"] },
+    { name = "livekit-agents", extra = ["cartesia", "deepgram", "elevenlabs", "google", "openai", "silero"] },
     { name = "livekit-plugins-noise-cancellation" },
     { name = "pydantic" },
     { name = "python-dotenv" },
@@ -1417,7 +1417,7 @@ requires-dist = [
     { name = "celery", extras = ["redis"], specifier = ">=5.6.3" },
     { name = "google-genai", specifier = ">=2.32.0" },
     { name = "httpx", specifier = ">=0.28.1" },
-    { name = "livekit-agents", extras = ["deepgram", "elevenlabs", "google", "openai", "silero"], specifier = "~=1.8" },
+    { name = "livekit-agents", extras = ["cartesia", "deepgram", "elevenlabs", "google", "openai", "silero"], specifier = "~=1.8" },
     { name = "livekit-plugins-noise-cancellation", specifier = "~=0.3" },
     { name = "pydantic", specifier = ">=2.14.1" },
     { name = "python-dotenv", specifier = ">=1.2.4" },
@@ -1966,6 +1966,9 @@ wheels = [
 ]
 
 [package.optional-dependencies]
+cartesia = [
+    { name = "livekit-plugins-cartesia" },
+]
 codecs = [
     { name = "numpy" },
 ]
@@ -2048,6 +2051,18 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/82/2e/7b4ec0de0e5f1ef4c2f441a3047dda950c11d819fb1804e0a13c6ef68317/livekit_local_inference-0.2.7-cp314-cp314-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:f122e205899c5393ef4a710beedfece7a166649afa5ccbdc3cca61f2df113efa", size = 34835765, upload-time = "2026-08-18T09:47:08.974Z" },
     { url = "https://files.pythonhosted.org/packages/01/c9/5cee5031e9ac2b545f6a68d2442bb02a3a6564f298d91f321448c1b59944/livekit_local_inference-0.2.7-cp314-cp314-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:7a97bc2932b73f72c5246cb8350cf2cd7d21fc6237053fc7c1ac645352ed0f3f", size = 34876770, upload-time = "2026-08-18T09:47:11.379Z" },
     { url = "https://files.pythonhosted.org/packages/7f/72/c2c956d1797bd944449fd90945ceea5dded222a54b2df8c967c77440298f/livekit_local_inference-0.2.7-cp314-cp314-win_amd64.whl", hash = "sha256:168c2f2dd55ee6dd94fd7caae0ff73e4875e25aa418df819905fd339de1de4cd", size = 34882427, upload-time = "2026-08-18T09:47:13.983Z" },
+]
+
+[[package]]
+name = "livekit-plugins-cartesia"
+version = "1.8.10"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "livekit-agents" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/e0/d9/1bafd01449d5f7a9e67cb522bbf7d98ec499ac572ad56361aa276bbf2e60/livekit_plugins_cartesia-1.8.10.tar.gz", hash = "sha256:b1e5ff125de2f6e82637d7145ce12e052471569b5d81b6aee1eacb87db098897", size = 20073, upload-time = "2026-10-28T17:17:42.683Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/44/11/e7e4812120f0f94bbde2b6bebf7f390d2dd6bac7d2ad2bbcd59b63bc9c81/livekit_plugins_cartesia-1.8.10-py3-none-any.whl", hash = "sha256:97bc44b941c9f5e24acebb7a628b47216f743a0418f644078e1f552c718ec3ba", size = 27733, upload-time = "2026-10-28T17:17:41.433Z" },
 ]
 
 [[package]]

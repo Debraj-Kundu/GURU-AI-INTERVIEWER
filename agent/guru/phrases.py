@@ -26,6 +26,9 @@ CLOSING_OPENERS = {
 NO_INFO = "That's a great question, but I don't have that information. The recruiter will be happy to answer it."
 NO_INFO_CLOSING = NO_INFO + " Do you have any other questions?"
 BACK_TO_QUESTION = NO_INFO + " Coming back to my question: {last}"
+# The candidate went off script (a recipe, directions, a favour): refuse and repeat the question.
+OFF_SCRIPT = "I am sorry, I can't help with that. Let's just stick to the interview."
+OFF_SCRIPT_BACK = OFF_SCRIPT + " {last}"
 # The candidate rejoined after a dropped connection.
 REJOINED = "Welcome back. As I was saying: {last}"
 REJOINED_CLOSING = "Welcome back. Do you have any other questions about the company or the role?"

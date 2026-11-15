@@ -170,7 +170,7 @@ async def lookup(job: JobRole, allowed_tech: list[str], question: str, session_i
     async with asyncio.TaskGroup() as tg:
         scope_t = tg.create_task(
             llm.generate_json(
-                config.OBSERVER_MODEL,
+                config.OBSERVER_ROUTE,
                 prompts.SCOPE.format(allowed=", ".join(allowed_tech), question=question),
                 ScopeLabel,
                 timeout=config.SCOPE_TIMEOUT_SEC,

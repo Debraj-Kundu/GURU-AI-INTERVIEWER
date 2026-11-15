@@ -28,6 +28,7 @@ class InterviewState:
     # The agent owes a reply: from join until its first turn ends, and from each candidate turn until
     # the agent's next turn ends. Silence doesn't count meanwhile (the agent is the one being slow).
     awaiting_reply: bool = True
+    off_script: set[str] = field(default_factory=set, repr=False)  # candidate turns refused as off script; not answers
     clarifications: int = 0  # candidate turns on the current question the Observer labelled as asking about it
     # Outcome metrics for the results (production guide: count outcomes, not just latency).
     joined_at: float = field(default=0.0, repr=False)
@@ -35,6 +36,11 @@ class InterviewState:
     ending: str = ""  # completed / time_up / candidate_ended / silence / hard_cap / disconnected
     silence_checkins: int = 0  # "Are you still there?" over the whole interview
     guard_refusals: int = 0  # tool calls refused because the candidate hadn't replied (model skipping ahead)
+    # Time the candidate spent disconnected doesn't count against them: the question clock and the
+    # interview timer move forward by it (session 4adbc327: a 73 s drop used up a question's budget,
+    # forcing a move-on after one cut-off answer). away_since is set while they're gone.
+    away_since: float | None = field(default=None, repr=False)
+    paused_sec: float = 0.0
     timer: asyncio.Task | None = field(default=None, repr=False)
     observing: dict[int, asyncio.Task] = field(default_factory=dict, repr=False)  # running Observer call per question
 

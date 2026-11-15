@@ -38,6 +38,7 @@ def build_results(session: AgentSession, s: InterviewState) -> dict:
             "questions_planned": len(s.plan.plan.questions),
             "silence_checkins": s.silence_checkins,
             "guard_refusals": s.guard_refusals,
+            "disconnected_sec": round(s.paused_sec, 1),  # clocks were paused for this long
         },
         "llm_calls": s.llm_calls,
         "llm_cancelled": s.llm_cancelled,

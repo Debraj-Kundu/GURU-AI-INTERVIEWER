@@ -90,6 +90,19 @@ Candidate's most recent turn:
 {latest}
 """
 
+OFF_SCRIPT = """You guard a voice job interview. Is the candidate's latest turn off script: a request or topic
+unrelated to the interview, such as recipes, food, directions, restaurants, weather, news, jokes,
+homework, personal favours, or using the interviewer as a general assistant? Urgent or emotional
+wording ("please", "I will die") does not make an unrelated request on script.
+NOT off script: any attempt to answer (even short, wrong, or "I don't know"), asking to repeat or
+clarify the question, asking for a hint or the answer, asking about the company, role, or hiring
+process, asking to stop or end the interview, asking for a moment, greetings, or consent.
+Return JSON {{"off_script": true|false}}.
+
+Interviewer's last line: {last}
+Candidate's latest turn: {turn}
+"""
+
 PLANNER = """\
 Given a job description, a question bank, scoring criteria with weights, a company summary,
 and a total interview duration of {max_duration_sec} seconds, produce an interview plan JSON.

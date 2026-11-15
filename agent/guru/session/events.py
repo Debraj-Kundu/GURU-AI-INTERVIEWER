@@ -102,6 +102,8 @@ class SessionEvents:
             return
         if session.current_agent is not self.agent:
             return  # consent/closing turns are not graded
+        if (item.text_content or "") in s.off_script:
+            return  # refused in llm_node: not an answer, not graded
         s.record_answer(item.text_content or "")
         observe_latest(session, self.agent)
 
@@ -129,6 +131,7 @@ class SessionEvents:
             function_name="entrypoint",
             output={"reason": rtc.DisconnectReason.Name(p.disconnect_reason or rtc.DisconnectReason.UNKNOWN_REASON), "grace_sec": config.RECONNECT_GRACE_SEC},
         )
+        self.s.away_since = time.monotonic()  # clocks pause until they're back
         self._grace = spawn(self._end_if_not_back())
 
     def _back(self, p: rtc.RemoteParticipant) -> None:
@@ -136,6 +139,14 @@ class SessionEvents:
             return
         self._grace.cancel()
         self._grace = None
+        s = self.s
+        if s.away_since is not None:
+            away = min(time.monotonic() - s.away_since, config.RECONNECT_GRACE_SEC)
+            s.away_since = None
+            s.paused_sec += away
+            s.question_started_at += away  # this question's budget resumes where it stopped
+            jlog("Clocks paused for the disconnect", function_name="entrypoint",
+                 output={"away_sec": round(away, 1), "paused_total_sec": round(s.paused_sec, 1)})
         jlog("Candidate reconnected", function_name="entrypoint")
         # Fixed text, no LLM call: repeat the agent's last full line word for word (it may be a
         # follow-up, not the planned question); if that line was cut off, fall back to the question.

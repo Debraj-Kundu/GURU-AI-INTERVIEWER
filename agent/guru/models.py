@@ -79,6 +79,10 @@ class Plan(BaseModel):
     plan: InterviewPlan
 
 
+class OffScript(BaseModel):
+    off_script: bool
+
+
 class ObserverNote(BaseModel):
     coverage: float = Field(ge=0, le=1)
     depth: Literal["shallow", "adequate", "deep"]

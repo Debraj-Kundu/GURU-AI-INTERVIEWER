@@ -32,7 +32,7 @@ async def score_criterion(c: Criterion, context: str, session_id: str, provider:
     )
     # flex: nobody waits on the score (the candidate never sees it), so take the cheaper tier.
     s = await llm.generate_json(
-        config.SCORER_MODEL, prompt, CriterionScore, timeout=120, context=context, session_id=session_id, flex=True,
+        config.SCORER_ROUTE, prompt, CriterionScore, timeout=120, context=context, session_id=session_id, flex=True,
         provider=provider,
     )
     s.criterion_id = c.id  # never trust the model to echo the id back
@@ -56,7 +56,7 @@ async def score_session(session: dict, plan: Plan) -> dict:
         scores = await _score_all(plan, context, sid, provider)
     return {
         "session_id": session["session_id"],
-        "model": config.OPENROUTER_MODEL if provider == "openrouter" else config.SCORER_MODEL,
+        "model": config.SCORER_ROUTE.openrouter if provider == "openrouter" else config.SCORER_ROUTE.gemini,
         "overall": aggregate(scores, plan.job.criteria),
         "criteria": [s.model_dump() for s in scores],
         "advisory": "AI-assisted score. Requires human review before any decision.",

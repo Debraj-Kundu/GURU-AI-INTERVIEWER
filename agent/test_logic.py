@@ -263,7 +263,7 @@ def test_scorer_uses_one_model_per_session(monkeypatch):
     out = asyncio.run(scorer.score_session({"session_id": "t", "turns": [], "notes": []}, plan))
 
     n = len(plan.job.criteria)
-    assert n >= 2 and out["model"] == config.SCORER_MODEL
+    assert n >= 2 and out["model"] == config.SCORER_ROUTE.gemini
     assert {c["rationale"] for c in out["criteria"]} == {"gemini"}  # every final score from one judge
     assert [p for p, _ in calls[-n:]] == ["gemini"] * n
 
@@ -391,3 +391,98 @@ def test_planner_fills_in_only_what_is_missing(monkeypatch):
     full = asyncio.run(planner.make_plan(JOB, ""))
     assert len(prompts_seen) == 1 and prompts.PLANNER_NO_BANK_RULE not in prompts_seen[0]
     assert full.job.criteria == JOB.criteria
+
+
+def test_header_log_keeps_ids_and_limits_but_never_secrets():
+    from guru.http_debug import picked_headers
+
+    got = picked_headers({
+        "X-Request-ID": "r1", "x-ratelimit-remaining-requests": "3", "Retry-After": "2", "CF-RAY": "abc",
+        "Authorization": "Bearer sk-x", "Set-Cookie": "s=1", "x-api-key-ratelimit": "9", "Date": "today",
+    })
+    assert got == {"x-request-id": "r1", "x-ratelimit-remaining-requests": "3", "retry-after": "2", "cf-ray": "abc"}
+
+
+def test_openrouter_empty_answer_is_retried_once(monkeypatch):
+    import asyncio
+    from types import SimpleNamespace as NS
+
+    from guru import llm
+    from guru.models import ScopeLabel
+
+    replies = ["", '{"label": "company_info"}']
+
+    async def create(**_):
+        text = replies.pop(0)
+        msg = NS(content=text, refusal=None)
+        choice = NS(message=msg, finish_reason="stop" if text else "length", model_extra={"native_finish_reason": "MAX_TOKENS"})
+        return NS(id="gen-1", choices=[choice], usage=None, model_extra={"provider": "OpenAI"})
+
+    fake = NS(chat=NS(completions=NS(create=create)))
+    monkeypatch.setattr(llm, "openrouter", lambda: fake)
+    out = asyncio.run(llm._openrouter_json("m", "p", ScopeLabel, 5, "", "", False, 100))
+    assert out.label == "company_info" and replies == []  # the empty first answer was retried
+
+
+def test_disconnect_pauses_the_interview_clock():
+    import asyncio
+    import time
+
+    from guru.session.lifecycle import _until
+
+    s = InterviewState(plan=Plan.model_validate_json(config.PLAN_PATH.read_text(encoding="utf-8")), session_id="t")
+    s.started_at = time.monotonic() - 10  # 10 s into the interview
+    s.paused_sec = 5  # of which 5 were spent disconnected
+    t0 = time.monotonic()
+    asyncio.run(_until(s, 6))  # 6 s of interview time: 1 s from now, not already past
+    assert 0.8 < time.monotonic() - t0 < 2
+
+
+def test_off_script_turn_gets_the_fixed_line_and_is_not_an_answer(monkeypatch):
+    """Session 2e29d20d: the model read a biryani recipe after six off-script pleas."""
+    import asyncio
+
+    from livekit.agents import Agent
+
+    from guru.agents import interviewer
+    from guru.phrases import OFF_SCRIPT
+
+    async def fake_llm(self, chat_ctx, tools, model_settings):
+        yield "model "
+        yield "reply"
+
+    verdict = {}
+
+    async def fake_check(model, prompt, schema, **_):
+        await asyncio.sleep(0.01)
+        return schema(off_script=verdict["v"])
+
+    monkeypatch.setattr(Agent.default, "llm_node", fake_llm)
+    monkeypatch.setattr(interviewer, "generate_json", fake_check)
+    s = InterviewState(plan=Plan.model_validate_json(config.PLAN_PATH.read_text(encoding="utf-8")), session_id="t")
+    s.consented = True
+    agent = interviewer.InterviewerAgent(s)
+
+    def run(turn, ok):
+        verdict["v"] = not ok
+        ctx = agent.chat_ctx.copy()
+        ctx.add_message(role="assistant", content="How would you scale it?")
+        ctx.add_message(role="user", content=turn)
+        agent._chat_ctx = ctx
+
+        async def go():
+            return "".join([c async for c in agent.llm_node(ctx, [], None)])  # type: ignore[arg-type]
+        return asyncio.run(go())
+
+    s.answers = ["biryani recipe please"]  # committed before the check returned
+    assert run("biryani recipe please", ok=False) == OFF_SCRIPT + " How would you scale it?"
+    assert s.answers == [] and "biryani recipe please" in s.off_script
+    assert run("I'd shard by user id", ok=True) == "model reply"
+
+    verdict["v"] = True  # a failed check lets the reply through
+
+    async def boom(*_a, **_k):
+        raise TimeoutError
+
+    monkeypatch.setattr(interviewer, "generate_json", boom)
+    assert run("anything", ok=True) == "model reply"
